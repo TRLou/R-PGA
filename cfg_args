@@ -1,0 +1,1 @@
+Namespace(sh_degree=3, source_path='/workspace/GIR/data/realcar_obj2', model_path='./output/exp_obj1.6', images='images', resolution=-1, white_background=True, data_device='cuda', eval=True)

@@ -1,0 +1,14 @@
+checkpoints/
+data/
+dev/
+EXP_EVAL/
+hdri/
+lbm_ckpt/
+lbm_ckpt2/
+m_envs/
+mmdet_files/
+RGA_output/
+RGA_perturb_output/
+saved_exp_result/
+submodules/
+trained_3dgs/

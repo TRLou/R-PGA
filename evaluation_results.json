@@ -1,0 +1,1752 @@
+[
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.2609308885754584,
+        "AP50": 0.7302612391385165,
+        "processed_images": 709,
+        "successful_attacks": 185,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.44851904090267986,
+        "AP50": 0.5540501041845842,
+        "processed_images": 709,
+        "successful_attacks": 318,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.5049365303244006,
+        "AP50": 0.5606271543286063,
+        "processed_images": 709,
+        "successful_attacks": 358,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.3906911142454161,
+        "AP50": 0.6172332005067306,
+        "processed_images": 709,
+        "successful_attacks": 277,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.47531734837799716,
+        "AP50": 0.5131551609797911,
+        "processed_images": 709,
+        "successful_attacks": 337,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.3314527503526093,
+        "AP50": 0.7494729669256645,
+        "processed_images": 709,
+        "successful_attacks": 235,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.4795486600846262,
+        "AP50": 0.4979230815714056,
+        "processed_images": 709,
+        "successful_attacks": 340,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.24259520451339917,
+        "AP50": 0.7382229160178793,
+        "processed_images": 709,
+        "successful_attacks": 172,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.43441466854724964,
+        "AP50": 0.5777195217934521,
+        "processed_images": 709,
+        "successful_attacks": 308,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.4781382228490832,
+        "AP50": 0.601525603370233,
+        "processed_images": 709,
+        "successful_attacks": 339,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.3751763046544429,
+        "AP50": 0.6030547781424088,
+        "processed_images": 709,
+        "successful_attacks": 266,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.45698166431593795,
+        "AP50": 0.5070607770573009,
+        "processed_images": 709,
+        "successful_attacks": 324,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.3540197461212976,
+        "AP50": 0.7036699557846242,
+        "processed_images": 709,
+        "successful_attacks": 251,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.45698166431593795,
+        "AP50": 0.5133611451495778,
+        "processed_images": 709,
+        "successful_attacks": 324,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.2679830747531735,
+        "AP50": 0.7217385687611321,
+        "processed_images": 709,
+        "successful_attacks": 190,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.5317348377997179,
+        "AP50": 0.5001594099131497,
+        "processed_images": 709,
+        "successful_attacks": 377,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.5543018335684062,
+        "AP50": 0.5077222355387427,
+        "processed_images": 709,
+        "successful_attacks": 393,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.46544428772919605,
+        "AP50": 0.5796127102591775,
+        "processed_images": 709,
+        "successful_attacks": 330,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.5401974612129761,
+        "AP50": 0.46827759796922863,
+        "processed_images": 709,
+        "successful_attacks": 383,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.4076163610719323,
+        "AP50": 0.6695555760101839,
+        "processed_images": 709,
+        "successful_attacks": 289,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.5345557122708039,
+        "AP50": 0.44187327948483557,
+        "processed_images": 709,
+        "successful_attacks": 379,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.2651622002820874,
+        "AP50": 0.7377258403734729,
+        "processed_images": 709,
+        "successful_attacks": 188,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.4330042313117066,
+        "AP50": 0.6343280971050261,
+        "processed_images": 709,
+        "successful_attacks": 307,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.4978843441466855,
+        "AP50": 0.5839572603052313,
+        "processed_images": 709,
+        "successful_attacks": 353,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.38645980253878703,
+        "AP50": 0.6561966294592078,
+        "processed_images": 709,
+        "successful_attacks": 274,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.47531734837799716,
+        "AP50": 0.5280676931142807,
+        "processed_images": 709,
+        "successful_attacks": 337,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.3032440056417489,
+        "AP50": 0.7723577713424509,
+        "processed_images": 709,
+        "successful_attacks": 215,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.4527503526093089,
+        "AP50": 0.5087845650586215,
+        "processed_images": 709,
+        "successful_attacks": 321,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.2468265162200282,
+        "AP50": 0.7393673658370972,
+        "processed_images": 709,
+        "successful_attacks": 175,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.44287729196050774,
+        "AP50": 0.5730837705460461,
+        "processed_images": 709,
+        "successful_attacks": 314,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.45698166431593795,
+        "AP50": 0.5986218865622174,
+        "processed_images": 709,
+        "successful_attacks": 324,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.38081805359661497,
+        "AP50": 0.6009523055770181,
+        "processed_images": 709,
+        "successful_attacks": 270,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.45839210155148097,
+        "AP50": 0.5069084032015366,
+        "processed_images": 709,
+        "successful_attacks": 325,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.3511988716502116,
+        "AP50": 0.7151361487128518,
+        "processed_images": 709,
+        "successful_attacks": 249,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.4513399153737659,
+        "AP50": 0.5108514103022489,
+        "processed_images": 709,
+        "successful_attacks": 320,
+        "image_dir": "EXP_EVAL/ori_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.4146685472496474,
+        "AP50": 0.5832384878938848,
+        "processed_images": 709,
+        "successful_attacks": 294,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.692524682651622,
+        "AP50": 0.28226440196687524,
+        "processed_images": 709,
+        "successful_attacks": 491,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.7757404795486601,
+        "AP50": 0.2804724330251867,
+        "processed_images": 709,
+        "successful_attacks": 550,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.6346967559943583,
+        "AP50": 0.34286662123420025,
+        "processed_images": 709,
+        "successful_attacks": 450,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.5684062059238364,
+        "AP50": 0.410384863615036,
+        "processed_images": 709,
+        "successful_attacks": 403,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.4386459802538787,
+        "AP50": 0.6370936713435433,
+        "processed_images": 709,
+        "successful_attacks": 311,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.7602256699576869,
+        "AP50": 0.19274602965875104,
+        "processed_images": 709,
+        "successful_attacks": 539,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.24964739069111425,
+        "AP50": 0.7384150217879903,
+        "processed_images": 709,
+        "successful_attacks": 177,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.5303244005641748,
+        "AP50": 0.44963643361221656,
+        "processed_images": 709,
+        "successful_attacks": 376,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.5613540197461213,
+        "AP50": 0.5173406445167281,
+        "processed_images": 709,
+        "successful_attacks": 398,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.4513399153737659,
+        "AP50": 0.5120996426452289,
+        "processed_images": 709,
+        "successful_attacks": 320,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.4245416078984485,
+        "AP50": 0.5551474771716378,
+        "processed_images": 709,
+        "successful_attacks": 301,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.2849083215796897,
+        "AP50": 0.7547913613644514,
+        "processed_images": 709,
+        "successful_attacks": 202,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.48660084626234135,
+        "AP50": 0.4642813259905035,
+        "processed_images": 709,
+        "successful_attacks": 345,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.5148095909732017,
+        "AP50": 0.5104537524960258,
+        "processed_images": 709,
+        "successful_attacks": 365,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.7249647390691114,
+        "AP50": 0.28285463560711255,
+        "processed_images": 709,
+        "successful_attacks": 514,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.7475317348377997,
+        "AP50": 0.29244499450380146,
+        "processed_images": 709,
+        "successful_attacks": 530,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.685472496473907,
+        "AP50": 0.33794192563403735,
+        "processed_images": 709,
+        "successful_attacks": 486,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.6812411847672779,
+        "AP50": 0.32557323710484937,
+        "processed_images": 709,
+        "successful_attacks": 483,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.5613540197461213,
+        "AP50": 0.4978168220682577,
+        "processed_images": 709,
+        "successful_attacks": 398,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.7362482369534555,
+        "AP50": 0.24111358144066553,
+        "processed_images": 709,
+        "successful_attacks": 522,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.42736248236953456,
+        "AP50": 0.5923060043291611,
+        "processed_images": 709,
+        "successful_attacks": 303,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.7616361071932299,
+        "AP50": 0.24352307482199234,
+        "processed_images": 709,
+        "successful_attacks": 540,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.8053596614950634,
+        "AP50": 0.27494947138157755,
+        "processed_images": 709,
+        "successful_attacks": 571,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.6967559943582511,
+        "AP50": 0.2982762374661186,
+        "processed_images": 709,
+        "successful_attacks": 494,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.6050775740479548,
+        "AP50": 0.420771364461292,
+        "processed_images": 709,
+        "successful_attacks": 429,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.44428772919605075,
+        "AP50": 0.6480905894528736,
+        "processed_images": 709,
+        "successful_attacks": 315,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.7785613540197461,
+        "AP50": 0.1800078937614506,
+        "processed_images": 709,
+        "successful_attacks": 552,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.2524682651622003,
+        "AP50": 0.7343055307865144,
+        "processed_images": 709,
+        "successful_attacks": 179,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.5528913963328632,
+        "AP50": 0.4121224880218506,
+        "processed_images": 709,
+        "successful_attacks": 392,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.5712270803949224,
+        "AP50": 0.5063310014930639,
+        "processed_images": 709,
+        "successful_attacks": 405,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.4894217207334274,
+        "AP50": 0.4833699546077035,
+        "processed_images": 709,
+        "successful_attacks": 347,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.4330042313117066,
+        "AP50": 0.545287863774733,
+        "processed_images": 709,
+        "successful_attacks": 307,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.2538787023977433,
+        "AP50": 0.7799033441326836,
+        "processed_images": 709,
+        "successful_attacks": 180,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.5218617771509168,
+        "AP50": 0.4197939942506227,
+        "processed_images": 709,
+        "successful_attacks": 370,
+        "image_dir": "EXP_EVAL/fca_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.6995768688293371,
+        "AP50": 0.31443153999068524,
+        "processed_images": 709,
+        "successful_attacks": 496,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.8166431593794076,
+        "AP50": 0.11908083070408214,
+        "processed_images": 709,
+        "successful_attacks": 579,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.849083215796897,
+        "AP50": 0.24355251816186044,
+        "processed_images": 709,
+        "successful_attacks": 602,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.7306064880112835,
+        "AP50": 0.18651032718745145,
+        "processed_images": 709,
+        "successful_attacks": 518,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.7249647390691114,
+        "AP50": 0.26856945996934717,
+        "processed_images": 709,
+        "successful_attacks": 514,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.6177715091678421,
+        "AP50": 0.5181644389575177,
+        "processed_images": 709,
+        "successful_attacks": 438,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.8899858956276445,
+        "AP50": 0.10696701417592439,
+        "processed_images": 709,
+        "successful_attacks": 631,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.4894217207334274,
+        "AP50": 0.49195552685044036,
+        "processed_images": 709,
+        "successful_attacks": 347,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.6417489421720733,
+        "AP50": 0.2903492897748947,
+        "processed_images": 709,
+        "successful_attacks": 455,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.6727785613540197,
+        "AP50": 0.38575658676299185,
+        "processed_images": 709,
+        "successful_attacks": 477,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.5514809590973202,
+        "AP50": 0.3782278597354889,
+        "processed_images": 709,
+        "successful_attacks": 391,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.5641748942172073,
+        "AP50": 0.3852850767699155,
+        "processed_images": 709,
+        "successful_attacks": 400,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.45839210155148097,
+        "AP50": 0.6100855395197868,
+        "processed_images": 709,
+        "successful_attacks": 325,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.8194640338504936,
+        "AP50": 0.13950632394037465,
+        "processed_images": 709,
+        "successful_attacks": 581,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.6361071932299013,
+        "AP50": 0.371876214038242,
+        "processed_images": 709,
+        "successful_attacks": 451,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.7997179125528914,
+        "AP50": 0.18781253153627567,
+        "processed_images": 709,
+        "successful_attacks": 567,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.7898448519040903,
+        "AP50": 0.22453491254286337,
+        "processed_images": 709,
+        "successful_attacks": 560,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.7390691114245416,
+        "AP50": 0.24619805000045084,
+        "processed_images": 709,
+        "successful_attacks": 524,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.7559943582510579,
+        "AP50": 0.2939588237892497,
+        "processed_images": 709,
+        "successful_attacks": 536,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.6558533145275035,
+        "AP50": 0.4756673479622061,
+        "processed_images": 709,
+        "successful_attacks": 465,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.8519040902679831,
+        "AP50": 0.11567580547522416,
+        "processed_images": 709,
+        "successful_attacks": 604,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.7023977433004231,
+        "AP50": 0.3260960213162682,
+        "processed_images": 709,
+        "successful_attacks": 498,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.8815232722143864,
+        "AP50": 0.0977136099880392,
+        "processed_images": 709,
+        "successful_attacks": 625,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.8575458392101551,
+        "AP50": 0.25109889019619336,
+        "processed_images": 709,
+        "successful_attacks": 608,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.771509167842031,
+        "AP50": 0.1754734827713533,
+        "processed_images": 709,
+        "successful_attacks": 547,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.7842031029619182,
+        "AP50": 0.24983068487860938,
+        "processed_images": 709,
+        "successful_attacks": 556,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.6629055007052186,
+        "AP50": 0.5051917609843342,
+        "processed_images": 709,
+        "successful_attacks": 470,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.9294781382228491,
+        "AP50": 0.09211262349377979,
+        "processed_images": 709,
+        "successful_attacks": 659,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.5204513399153737,
+        "AP50": 0.46861860426989466,
+        "processed_images": 709,
+        "successful_attacks": 369,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.6741889985895627,
+        "AP50": 0.22941182418303055,
+        "processed_images": 709,
+        "successful_attacks": 478,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.689703808180536,
+        "AP50": 0.3533797907558355,
+        "processed_images": 709,
+        "successful_attacks": 489,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.5796897038081805,
+        "AP50": 0.3410987271503969,
+        "processed_images": 709,
+        "successful_attacks": 411,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.5881523272214386,
+        "AP50": 0.368716835975647,
+        "processed_images": 709,
+        "successful_attacks": 417,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.46544428772919605,
+        "AP50": 0.5925200378352945,
+        "processed_images": 709,
+        "successful_attacks": 330,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.8321579689703809,
+        "AP50": 0.12547458437356082,
+        "processed_images": 709,
+        "successful_attacks": 590,
+        "image_dir": "EXP_EVAL/dta_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.693935119887165,
+        "AP50": 0.2908491167155179,
+        "processed_images": 709,
+        "successful_attacks": 492,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.922425952045134,
+        "AP50": 0.06208450821312991,
+        "processed_images": 709,
+        "successful_attacks": 654,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.9858956276445698,
+        "AP50": 0.061690637333826584,
+        "processed_images": 709,
+        "successful_attacks": 699,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.8504936530324401,
+        "AP50": 0.08825153789737007,
+        "processed_images": 709,
+        "successful_attacks": 603,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.843441466854725,
+        "AP50": 0.10400851883671501,
+        "processed_images": 709,
+        "successful_attacks": 598,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.6375176304654443,
+        "AP50": 0.4774137342518026,
+        "processed_images": 709,
+        "successful_attacks": 452,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.9675599435825106,
+        "AP50": 0.005650627680800178,
+        "processed_images": 709,
+        "successful_attacks": 686,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.4710860366713681,
+        "AP50": 0.4966053691777316,
+        "processed_images": 709,
+        "successful_attacks": 334,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.7842031029619182,
+        "AP50": 0.17207529869946567,
+        "processed_images": 709,
+        "successful_attacks": 556,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.9464033850493653,
+        "AP50": 0.14271933991800653,
+        "processed_images": 709,
+        "successful_attacks": 671,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.7362482369534555,
+        "AP50": 0.19652989913116803,
+        "processed_images": 709,
+        "successful_attacks": 522,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.7122708039492243,
+        "AP50": 0.22992386059327558,
+        "processed_images": 709,
+        "successful_attacks": 505,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.48660084626234135,
+        "AP50": 0.5633310689167543,
+        "processed_images": 709,
+        "successful_attacks": 345,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.8885754583921015,
+        "AP50": 0.10225612907247109,
+        "processed_images": 709,
+        "successful_attacks": 630,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.7813822284908322,
+        "AP50": 0.21986680139194836,
+        "processed_images": 709,
+        "successful_attacks": 554,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.9167842031029619,
+        "AP50": 0.08072103424505754,
+        "processed_images": 709,
+        "successful_attacks": 650,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.922425952045134,
+        "AP50": 0.08896107362075285,
+        "processed_images": 709,
+        "successful_attacks": 654,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.8660084626234132,
+        "AP50": 0.16153990815986286,
+        "processed_images": 709,
+        "successful_attacks": 614,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.8913963328631875,
+        "AP50": 0.13030158254233273,
+        "processed_images": 709,
+        "successful_attacks": 632,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.693935119887165,
+        "AP50": 0.403935541483489,
+        "processed_images": 709,
+        "successful_attacks": 492,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.8956276445698167,
+        "AP50": 0.10536169954998927,
+        "processed_images": 709,
+        "successful_attacks": 635,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.7545839210155149,
+        "AP50": 0.24471930617635898,
+        "processed_images": 709,
+        "successful_attacks": 535,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.9576868829337094,
+        "AP50": 0.05127732049335133,
+        "processed_images": 709,
+        "successful_attacks": 679,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.9760225669957687,
+        "AP50": 0.0715997808358886,
+        "processed_images": 709,
+        "successful_attacks": 692,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.8913963328631875,
+        "AP50": 0.09930906783450734,
+        "processed_images": 709,
+        "successful_attacks": 632,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.8688293370944993,
+        "AP50": 0.11081662841818549,
+        "processed_images": 709,
+        "successful_attacks": 616,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.6234132581100141,
+        "AP50": 0.5005957369099964,
+        "processed_images": 709,
+        "successful_attacks": 442,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.9520451339915373,
+        "AP50": 0.008056920106438072,
+        "processed_images": 709,
+        "successful_attacks": 675,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.5035260930888575,
+        "AP50": 0.4592011123895644,
+        "processed_images": 709,
+        "successful_attacks": 357,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.8265162200282088,
+        "AP50": 0.11746379733085632,
+        "processed_images": 709,
+        "successful_attacks": 586,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.9421720733427362,
+        "AP50": 0.14598289741711185,
+        "processed_images": 709,
+        "successful_attacks": 668,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.764456981664316,
+        "AP50": 0.1836714256893505,
+        "processed_images": 709,
+        "successful_attacks": 542,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.7588152327221439,
+        "AP50": 0.2038812461224469,
+        "processed_images": 709,
+        "successful_attacks": 538,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.5077574047954866,
+        "AP50": 0.5387470905076372,
+        "processed_images": 709,
+        "successful_attacks": 360,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.8899858956276445,
+        "AP50": 0.10315385901115158,
+        "processed_images": 709,
+        "successful_attacks": 631,
+        "image_dir": "EXP_EVAL/rauca_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.7165021156558533,
+        "AP50": 0.2841894978826696,
+        "processed_images": 709,
+        "successful_attacks": 508,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.8772919605077574,
+        "AP50": 0.06763814660635861,
+        "processed_images": 709,
+        "successful_attacks": 622,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.8970380818053597,
+        "AP50": 0.10478194802999496,
+        "processed_images": 709,
+        "successful_attacks": 636,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.8124118476727785,
+        "AP50": 0.09333573959090492,
+        "processed_images": 709,
+        "successful_attacks": 576,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.8645980253878702,
+        "AP50": 0.13942247764630752,
+        "processed_images": 709,
+        "successful_attacks": 613,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.7193229901269393,
+        "AP50": 0.3906787654215639,
+        "processed_images": 709,
+        "successful_attacks": 510,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.8519040902679831,
+        "AP50": 0.11574186808006331,
+        "processed_images": 709,
+        "successful_attacks": 604,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Dusk"
+    },
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.5232722143864598,
+        "AP50": 0.44610056552019994,
+        "processed_images": 709,
+        "successful_attacks": 371,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.7884344146685472,
+        "AP50": 0.16963698782704092,
+        "processed_images": 709,
+        "successful_attacks": 559,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.7616361071932299,
+        "AP50": 0.26620468497276306,
+        "processed_images": 709,
+        "successful_attacks": 540,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.7207334273624824,
+        "AP50": 0.19262987104329196,
+        "processed_images": 709,
+        "successful_attacks": 511,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.7433004231311706,
+        "AP50": 0.21569029715928162,
+        "processed_images": 709,
+        "successful_attacks": 527,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.6036671368124118,
+        "AP50": 0.4540094760331241,
+        "processed_images": 709,
+        "successful_attacks": 428,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.7799717912552891,
+        "AP50": 0.15227674167941918,
+        "processed_images": 709,
+        "successful_attacks": 553,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "HarshSun"
+    },
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.692524682651622,
+        "AP50": 0.33094286918640137,
+        "processed_images": 709,
+        "successful_attacks": 491,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.8547249647390691,
+        "AP50": 0.14419497684998947,
+        "processed_images": 709,
+        "successful_attacks": 606,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.8716502115655853,
+        "AP50": 0.13214140080592848,
+        "processed_images": 709,
+        "successful_attacks": 618,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.8053596614950634,
+        "AP50": 0.17157610709016974,
+        "processed_images": 709,
+        "successful_attacks": 571,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.8575458392101551,
+        "AP50": 0.15854930335825138,
+        "processed_images": 709,
+        "successful_attacks": 608,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.7207334273624824,
+        "AP50": 0.3784035335887562,
+        "processed_images": 709,
+        "successful_attacks": 511,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.8166431593794076,
+        "AP50": 0.14611348780718716,
+        "processed_images": 709,
+        "successful_attacks": 579,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Night"
+    },
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.7418899858956276,
+        "AP50": 0.2735089524225755,
+        "processed_images": 709,
+        "successful_attacks": 526,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.8984485190409027,
+        "AP50": 0.06496424973011017,
+        "processed_images": 709,
+        "successful_attacks": 637,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.8744710860366713,
+        "AP50": 0.1353171867403117,
+        "processed_images": 709,
+        "successful_attacks": 620,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.8265162200282088,
+        "AP50": 0.0970842486078089,
+        "processed_images": 709,
+        "successful_attacks": 586,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.8942172073342737,
+        "AP50": 0.08451208946379749,
+        "processed_images": 709,
+        "successful_attacks": 634,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.7447108603667136,
+        "AP50": 0.37650853734124795,
+        "processed_images": 709,
+        "successful_attacks": 528,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.8575458392101551,
+        "AP50": 0.11362027732486076,
+        "processed_images": 709,
+        "successful_attacks": 608,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Overcast"
+    },
+    {
+        "detector": "yolox",
+        "target_class": "car",
+        "ASR": 0.5613540197461213,
+        "AP50": 0.4223489382050254,
+        "processed_images": 709,
+        "successful_attacks": 398,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "faster-rcnn",
+        "target_class": "car",
+        "ASR": 0.8124118476727785,
+        "AP50": 0.15360909497196024,
+        "processed_images": 709,
+        "successful_attacks": 576,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "d-detr",
+        "target_class": "car",
+        "ASR": 0.7997179125528914,
+        "AP50": 0.24946202337741852,
+        "processed_images": 709,
+        "successful_attacks": 567,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "mask-rcnn",
+        "target_class": "car",
+        "ASR": 0.7418899858956276,
+        "AP50": 0.17511240867051214,
+        "processed_images": 709,
+        "successful_attacks": 526,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "yolov3",
+        "target_class": "car",
+        "ASR": 0.7771509167842031,
+        "AP50": 0.2005735649303957,
+        "processed_images": 709,
+        "successful_attacks": 551,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "pvt",
+        "target_class": "car",
+        "ASR": 0.6361071932299013,
+        "AP50": 0.4424650056118315,
+        "processed_images": 709,
+        "successful_attacks": 451,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Sunny"
+    },
+    {
+        "detector": "detr",
+        "target_class": "car",
+        "ASR": 0.7983074753173484,
+        "AP50": 0.13890394162047992,
+        "processed_images": 709,
+        "successful_attacks": 566,
+        "image_dir": "EXP_EVAL/active_mw",
+        "weather": "Sunny"
+    }
+]
