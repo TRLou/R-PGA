@@ -27,16 +27,32 @@ DETECTOR_RE = re.compile(r"^变量检测器：(.+?)，(.+?)方法的平均ASR是
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="将 MW2 评估 txt 转为 CSV（长表 + 宽表）")
+    p = argparse.ArgumentParser(description="将评估中文 txt 汇总结果转换为 CSV（支持单文件与多文件合并）")
     p.add_argument(
         "--input_txt",
         default="evaluation_results_mw2.txt",
-        help="输入 txt（evaluate_img_mw2.py 生成的中文汇总）",
+        help="输入 txt（单文件）。若指定了 --input_txts/--input_glob，则该参数可忽略。",
+    )
+    p.add_argument(
+        "--input_txts",
+        nargs="*",
+        default="evaluation_results_mw2.txt evaluation_results_rpga.txt",
+        help="输入 txt 列表（多个文件合并）。例如：--input_txts a.txt b.txt c.txt",
+    )
+    p.add_argument(
+        "--input_glob",
+        default="",
+        help="用 glob 批量匹配 txt（会合并）。例如：--input_glob './RGA_output/*/evaluation_results_*.txt'",
     )
     p.add_argument(
         "--output_dir",
         default="./csv_results",
         help="输出目录（会写多个 csv 文件）",
+    )
+    p.add_argument(
+        "--run_name",
+        default="",
+        help="可选：覆盖单文件模式下的 run 名称（默认用 input_txt 的 stem）。多文件模式下会忽略。",
     )
     return p.parse_args()
 
@@ -54,7 +70,7 @@ def _infer_variable_type(table_title: str) -> str:
     return table_title.strip()
 
 
-def parse_txt(txt_path: Path) -> list[dict]:
+def parse_txt(txt_path: Path, *, run: str) -> list[dict]:
     rows: list[dict] = []
     cur_table_id: str | None = None
     cur_table_title: str | None = None
@@ -125,6 +141,8 @@ def parse_txt(txt_path: Path) -> list[dict]:
 
         rows.append(
             {
+                "run": run,
+                "source_txt": str(txt_path),
                 "table_id": cur_table_id,
                 "table_title": cur_table_title,
                 "variable_type": cur_var_type,
@@ -180,17 +198,47 @@ def pivot_wide(
 
 def main() -> None:
     args = parse_args()
-    input_txt = Path(args.input_txt)
     out_dir = Path(args.output_dir)
 
-    if not input_txt.exists():
-        raise FileNotFoundError(f"找不到输入 txt：{input_txt}")
+    # Resolve input txts (single or multi)
+    input_paths: list[Path] = []
+    if args.input_txts is not None and len(args.input_txts) > 0:
+        input_paths.extend([Path(p) for p in args.input_txts])
+    if str(args.input_glob).strip():
+        input_paths.extend(sorted(Path().glob(str(args.input_glob))))
+    if not input_paths:
+        input_paths = [Path(args.input_txt)]
 
-    rows = parse_txt(input_txt)
+    # De-duplicate while preserving order
+    seen = set()
+    deduped: list[Path] = []
+    for p in input_paths:
+        sp = str(p)
+        if sp in seen:
+            continue
+        seen.add(sp)
+        deduped.append(p)
+    input_paths = deduped
+
+    missing = [p for p in input_paths if not p.exists()]
+    if missing:
+        raise FileNotFoundError(f"找不到输入 txt：{[str(p) for p in missing]}")
+
+    rows: list[dict] = []
+    multi_mode = len(input_paths) > 1
+    for p in input_paths:
+        if (not multi_mode) and str(args.run_name).strip():
+            run = str(args.run_name).strip()
+        else:
+            run = p.stem
+        rows.extend(parse_txt(p, run=run))
+
     if not rows:
         raise RuntimeError("未解析到任何数据行：请确认输入 txt 格式与脚本匹配。")
 
     fieldnames = [
+        "run",
+        "source_txt",
         "table_id",
         "table_title",
         "variable_type",
@@ -220,8 +268,18 @@ def main() -> None:
         write_csv(out_dir / f"table{tid}_{suffix}_long.csv", sub, fieldnames)
 
         # 宽表：ASR / AP50
-        header_asr, wide_asr = pivot_wide(sub, index_key="method", column_key="variable_value", value_key="mean_asr")
-        header_ap, wide_ap = pivot_wide(sub, index_key="method", column_key="variable_value", value_key="mean_ap50")
+        # 多文件合并时，为避免不同 run 下 method 同名被覆盖，使用 (run, method) 作为行索引。
+        idx_key = "method" if not multi_mode else "run_method"
+        sub_for_pivot = sub
+        if multi_mode:
+            sub_for_pivot = []
+            for r in sub:
+                rr = dict(r)
+                rr["run_method"] = f"{rr.get('run')}::{rr.get('method')}"
+                sub_for_pivot.append(rr)
+
+        header_asr, wide_asr = pivot_wide(sub_for_pivot, index_key=idx_key, column_key="variable_value", value_key="mean_asr")
+        header_ap, wide_ap = pivot_wide(sub_for_pivot, index_key=idx_key, column_key="variable_value", value_key="mean_ap50")
 
         # 这里宽表行是 dict[str, object]，用 csv.DictWriter 输出
         write_csv(out_dir / f"table{tid}_{suffix}_wide_asr.csv", wide_asr, header_asr)

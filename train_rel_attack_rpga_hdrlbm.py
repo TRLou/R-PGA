@@ -29,7 +29,6 @@ from train_func_hdr import (
     save_visualization_grid,
     compute_batch_loss,
     evaluate,
-    render_and_save_final_images,
     render_and_save_final_images_mw,
     evaluate_from_saved_images,
     visualize_hdr_bank_from_dir,
@@ -675,7 +674,7 @@ def main():
 				batch_total_loss_for_display = 0.0
 
 			# New visualization logic for the first batch of each epoch
-			if is_first_batch and vis_data:
+			if bool(getattr(args, 'save_visualizations', False)) and is_first_batch and vis_data:
 				vis_save_dir = save_dir / 'visualizations'
 				vis_save_dir.mkdir(parents=True, exist_ok=True)
 				for i, vis_item in enumerate(vis_data):
@@ -890,9 +889,8 @@ def main():
 		
 		# Define datasets
 		full_cameras = train_cameras + test_cameras
-		
-		# --- STAGE 1: Render all required images once ---
-		# 在最终渲染前恢复 envlight.base 为初始（checkpoint）版本（两套模型同步）
+
+		# 在最终评估前恢复 envlight.base 为初始（checkpoint）版本（两套模型同步）
 		selected_base_cpu = initial_env_base_cpu
 		if selected_base_cpu is None:
 			try:
@@ -912,25 +910,16 @@ def main():
 				except Exception:
 					pass
 
-		print("[消息] [最终评估] 正在渲染最终图片，强制禁用LBM背景重打光...")
-		final_test_img_dir = render_and_save_final_images(
-			test_cameras, gaussians, pipe, bg, args, dataset, 
-			gaussians_original, None, save_dir, 'test'
-		)
-		final_full_img_dir = render_and_save_final_images(
-			full_cameras, gaussians, pipe, bg, args, dataset, 
-			gaussians_original, None, save_dir, 'full'
-		)
-		# --- STAGE 1b: Render multi-weather images ---
-		print("[消息] [最终评估] 正在渲染多天气（跨光）最终图片...")
-		final_test_img_dirs_mw = render_and_save_final_images_mw(
-			test_cameras, gaussians, pipe, bg, args, dataset,
-			gaussians_original, None, save_dir, 'test'
-		)
-		final_full_img_dirs_mw = render_and_save_final_images_mw(
-			full_cameras, gaussians, pipe, bg, args, dataset,
-			gaussians_original, None, save_dir, 'full'
-		)
+		# --- STAGE 1: Render Multi-Weather Images for Offline Evaluation ---
+		final_full_img_dirs_mw = {}
+		if bool(getattr(args, 'save_final_full_images_mw', True)):
+			print("[消息] [最终评估] 正在渲染多天气（跨光）最终图片用于离线评估...")
+			final_full_img_dirs_mw = render_and_save_final_images_mw(
+				full_cameras, gaussians, pipe, bg, args, dataset,
+				gaussians_original, None, save_dir, 'full'
+			)
+		else:
+			print("[消息] [最终评估] 已跳过渲染多天气图片，将不会执行离線評估。")
 
 		# --- STAGE 2: Evaluate on saved images with all detectors ---
 		log_file_path = save_dir / 'training_log.txt'
@@ -959,41 +948,30 @@ def main():
 				curr_detector = init_detector(cfg_path, ckpt_path, device=device)
 				if not hasattr(curr_detector, 'CLASSES'):
 					curr_detector.CLASSES = coco_classes
-				
-				# 1. Evaluate on Test Set (Group 1)
-				asr_test, succ_test, total_test, ap50_test = evaluate_from_saved_images(
-					curr_detector, final_test_img_dir, Path(dataset.source_path) / 'annos', args
-				)
-				
-				# 2. Evaluate on Full Set (Group 2)
-				asr_full, succ_full, total_full, ap50_full = evaluate_from_saved_images(
-					curr_detector, final_full_img_dir, Path(dataset.source_path) / 'annos', args
-				)
-				
-				# 3. Evaluate Multi-Weather Directories
+
+				# Evaluate Multi-Weather Directories from saved images
 				mw_results = []
-				for weather_name, img_dir in final_test_img_dirs_mw.items():
-					asr_t_w, succ_t_w, total_t_w, ap50_t_w = evaluate_from_saved_images(
-						curr_detector, img_dir, Path(dataset.source_path) / 'annos', args
-					)
-					mw_results.append((weather_name, 'test', asr_t_w, succ_t_w, total_t_w, ap50_t_w))
-				for weather_name, img_dir in final_full_img_dirs_mw.items():
-					asr_f_w, succ_f_w, total_f_w, ap50_f_w = evaluate_from_saved_images(
-						curr_detector, img_dir, Path(dataset.source_path) / 'annos', args
-					)
-					mw_results.append((weather_name, 'full', asr_f_w, succ_f_w, total_f_w, ap50_f_w))
+				if not final_full_img_dirs_mw:
+					print("  - [结果] 未渲染任何多天气图片，跳过评估。")
+				else:
+					for weather_name, img_dir in final_full_img_dirs_mw.items():
+						asr_f_w, succ_f_w, total_f_w, ap50_f_w = evaluate_from_saved_images(
+							curr_detector, img_dir, Path(dataset.source_path) / 'annos', args
+						)
+						mw_results.append((weather_name, 'full', asr_f_w, succ_f_w, total_f_w, ap50_f_w))
 				
 				# Log results
-				print(f"  - [结果] 检测器: {det_name}, 测试集 ASR: {asr_test:.4f}, 全集 ASR: {asr_full:.4f}")
+				print(f"  - [结果] 检测器: {det_name}")
 				with open(log_file_path, 'a', encoding='utf-8') as f:
 					f.write(f"Detector: {det_name}\n")
-					f.write(f"  - [Test Set] ASR: {asr_test:.4f} ({succ_test}/{total_test}), AP@0.5: {ap50_test:.4f}\n")
-					f.write(f"  - [Full Set] ASR: {asr_full:.4f} ({succ_full}/{total_full}), AP@0.5: {ap50_full:.4f}\n")
 					# Write MW results
 					if mw_results:
-						f.write("  - [Multi-Weather]\n")
+						f.write("  - [Multi-Weather Evaluation on Full Set]\n")
 						for (wname, split, asr_w, succ_w, total_w, ap50_w) in mw_results:
+							print(f"    * {wname}: ASR={asr_w:.4f}")
 							f.write(f"    * {wname} [{split}] ASR: {asr_w:.4f} ({succ_w}/{total_w}), AP@0.5: {ap50_w:.4f}\n")
+					else:
+						f.write("  - No multi-weather images were rendered for evaluation.\n")
 					f.write("-" * 30 + "\n")
 					
 				# Cleanup

@@ -19,6 +19,7 @@ from gaussian_renderer import render
 from utils.main_utils import load_labelme_annotation, compute_adv_total_loss, coco_classes, calculate_ap_for_target_class, compute_iou
 from mmdet.apis import init_detector, inference_detector_custom, inference_detector
 from lbm_relit import LBMRelighter
+from mmdet.visualization import DetLocalVisualizer
 
 
 # =================================================================================
@@ -204,19 +205,6 @@ def compute_batch_loss(cam_batch: List, gaussians: GaussianModel, pipe: dict, bg
 							source_image=source_image, fg_relight_image=fg_relight_image, bg_mask=bg_mask,
 							width=W, height=H, invert_mask=True, hdr_sh_coeffs=hdr_sh_coeffs
 						)
-
-						# Re-enable temporary visualization
-						if batch_idx == 0:
-							try:
-								vis_save_dir = save_dir / 'relight_hdr_vis' / f'epoch_{epoch:03d}'
-								vis_save_dir.mkdir(parents=True, exist_ok=True)
-								
-								source_image.save(vis_save_dir / f'{name}_0_source_image.png')
-								fg_relight_image.save(vis_save_dir / f'{name}_1_fg_relight_image.png')
-								if relit_image_pil is not None:
-									relit_image_pil.save(vis_save_dir / f'{name}_2_relit_image_pil.png')
-							except Exception as e:
-								print(f"[警告] 保存 relight_hdr 临时可视化失败: {e}")
 				else:
 					relit_image_pil = source_image
 			
@@ -253,16 +241,17 @@ def compute_batch_loss(cam_batch: List, gaussians: GaussianModel, pipe: dict, bg
 	
 	imgs_for_det_batch = torch.stack(imgs_for_det, dim=0)
 	
-	try:
-		temp_vis_dir = save_dir / 'temp_imgs_for_det'
-		temp_vis_dir.mkdir(parents=True, exist_ok=True)
-		for i, img_tensor in enumerate(imgs_for_det):
-			img_name = view_names_batch[i]
-			img_array = img_tensor.detach().cpu().numpy().astype(np.uint8)
-			save_name = f'epoch_{epoch:03d}_batch_{batch_idx:04d}_{img_name}.png'
-			Image.fromarray(img_array).save(temp_vis_dir / save_name)
-	except Exception as e:
-		print(f"[警告] 临时的可视化代码保存失败: {e}")
+	if bool(getattr(args, 'save_temp_imgs_for_det', False)):
+		try:
+			temp_vis_dir = save_dir / 'temp_imgs_for_det'
+			temp_vis_dir.mkdir(parents=True, exist_ok=True)
+			for i, img_tensor in enumerate(imgs_for_det):
+				img_name = view_names_batch[i]
+				img_array = img_tensor.detach().cpu().numpy().astype(np.uint8)
+				save_name = f'epoch_{epoch:03d}_batch_{batch_idx:04d}_{img_name}.png'
+				Image.fromarray(img_array).save(temp_vis_dir / save_name)
+		except Exception as e:
+			print(f"[警告] 保存 temp_imgs_for_det 失败: {e}")
 	
 	preds = inference_detector_custom(
 		detector, imgs_for_det_batch, gt_bboxes_list=gt_bboxes_batch,
@@ -308,9 +297,17 @@ def evaluate(test_cameras, gaussians, pipe, bg, args, dataset, gaussians_origina
 	all_preds_for_map = []
 	all_gts_for_map = []
 
-	eval_vis_dir = save_dir / f"eval_{set_name}_epoch_{epoch:03d}"
-	eval_vis_dir.mkdir(parents=True, exist_ok=True)
-	print(f"[消息] 评估可视化结果将保存到: {eval_vis_dir}")
+	# Eval visualization: only save periodically to reduce I/O (default every 5 epochs).
+	eval_vis_dir = None
+	if str(set_name).lower() == 'test':
+		interval = int(getattr(args, 'eval_vis_interval', 5))
+		# Always save on the first epoch; otherwise follow interval
+		if int(epoch) == 1 or (interval > 0 and (int(epoch) % interval == 0)):
+			eval_vis_dir = save_dir / f"eval_{set_name}_epoch_{epoch:03d}"
+			eval_vis_dir.mkdir(parents=True, exist_ok=True)
+			print(f"[消息] 评估可视化结果将保存到: {eval_vis_dir} (interval={interval})")
+		else:
+			print(f"[消息] 本轮跳过评估可视化保存 (interval={interval})")
 
 	cam_batches = [test_cameras[i:i + args.batch_size] for i in range(0, len(test_cameras), args.batch_size)]
 	pbar_eval = tqdm(cam_batches, desc=f"Epoch {epoch} Evaluation on {set_name}", ncols=120)
@@ -548,6 +545,13 @@ def render_and_save_final_images(cameras, gaussians, pipe, bg, args, dataset, ga
 def evaluate_from_saved_images(detector, image_dir: Path, anno_dir: Path, args: argparse.Namespace):
     """Evaluates a detector on a directory of pre-rendered images."""
     print(f"    -> 正在评估文件夹: {image_dir.name} ...")
+
+    vis_dir = None
+    if bool(getattr(args, 'save_final_eval_vis', False)):
+        vis_dir = image_dir.parent / (image_dir.name + '_vis')
+        vis_dir.mkdir(parents=True, exist_ok=True)
+        print(f"      -> 检测结果可视化将保存到: {vis_dir}")
+
     image_paths = sorted([p for p in image_dir.iterdir() if p.suffix.lower() in ['.png', '.jpg', '.jpeg']])
     if not image_paths:
         return 0.0, 0, 0, 0.0
@@ -558,58 +562,91 @@ def evaluate_from_saved_images(detector, image_dir: Path, anno_dir: Path, args: 
     
     target_class_idx = coco_classes.index(args.target_class_name)
 
-    for img_path in tqdm(image_paths, desc=f"评估 {detector.__class__.__name__} on {image_dir.name}", ncols=120, leave=False):
-        anno_path = anno_dir / f'{img_path.stem}.json'
-        if not anno_path.exists():
-            continue
+    # Process images in batches to use inference_detector_custom
+    batch_size = 8  # A reasonable batch size
+    path_batches = [image_paths[i:i + batch_size] for i in range(0, len(image_paths), batch_size)]
+
+    pbar = tqdm(path_batches, desc=f"评估 {detector.__class__.__name__} on {image_dir.name}", ncols=120, leave=False)
+    for batch_paths in pbar:
+        imgs_for_det = []
+        view_names_with_anno = []
+        gt_bboxes_batch = []
+        gt_labels_batch = []
+
+        for img_path in batch_paths:
+            anno_path = anno_dir / f'{img_path.stem}.json'
+            if not anno_path.exists():
+                continue
             
-        gt_bboxes, gt_label_name = load_labelme_annotation(str(anno_path))
-        if gt_bboxes is None:
-            continue
-        
-        try:
-            gt_label_idx = coco_classes.index(gt_label_name)
-        except ValueError:
-            continue
-
-        all_gts_for_map.append({'bboxes': gt_bboxes, 'labels': np.array([gt_label_idx] * len(gt_bboxes))})
-
-        img_np = np.array(Image.open(img_path).convert('RGB'))
-        result = inference_detector(detector, img_np)
-        pred_instances = result.pred_instances
-        
-        score_thresh = getattr(args, 'score_thresh', 0.5)
-        score_mask = pred_instances.scores >= score_thresh
-        class_mask = pred_instances.labels == target_class_idx
-        match_indices = (score_mask & class_mask).nonzero(as_tuple=False).squeeze(1)
-        
-        # New ASR criterion with IoU against GTs (>= 0.5)
-        is_attack_successful = True
-        if match_indices.numel() > 0:
-            pred_bboxes_tc = pred_instances.bboxes[match_indices]  # [K,4]
-            # Filter GTs to target class if label info matches
-            if gt_label_idx == target_class_idx and gt_bboxes is not None and len(gt_bboxes) > 0:
-                gt_sel_t = torch.from_numpy(gt_bboxes).to(pred_bboxes_tc.device, dtype=pred_bboxes_tc.dtype)
-                max_iou = torch.zeros(pred_bboxes_tc.shape[0], device=pred_bboxes_tc.device)
-                for g in gt_sel_t:
-                    ious = compute_iou(pred_bboxes_tc, g.unsqueeze(0))  # [K]
-                    max_iou = torch.maximum(max_iou, ious)
-                if (max_iou >= 0.5).any():
-                    is_attack_successful = False
-            # If GT not the target class, keep as success by default
-
-        if is_attack_successful:
-            successful_attacks += 1
+            gt_bboxes, gt_label_name = load_labelme_annotation(str(anno_path))
+            if gt_bboxes is None:
+                continue
             
-        num_classes = len(detector.CLASSES)
-        pred_for_map = [np.empty((0, 5), dtype=np.float32) for _ in range(num_classes)]
-        for i in range(num_classes):
-            class_indices = (pred_instances.labels == i)
-            if class_indices.any():
-                boxes = pred_instances.bboxes[class_indices].cpu().numpy()
-                scores = pred_instances.scores[class_indices].cpu().numpy()
-                pred_for_map[i] = np.hstack([boxes, scores[:, np.newaxis]])
-        all_preds_for_map.append(pred_for_map)
+            try:
+                gt_label_idx = coco_classes.index(gt_label_name)
+            except ValueError:
+                continue
+
+            gt_bboxes_batch.append(gt_bboxes)
+            gt_labels_batch.append(np.array([gt_label_idx] * len(gt_bboxes)))
+            all_gts_for_map.append({'bboxes': gt_bboxes, 'labels': np.array([gt_label_idx] * len(gt_bboxes))})
+
+            img_np = np.array(Image.open(img_path).convert('RGB'))
+            img_tensor = torch.from_numpy(img_np).to(args.device) # Correct: (H, W, C) tensor
+            imgs_for_det.append(img_tensor)
+            view_names_with_anno.append(img_path.stem)
+
+        if not imgs_for_det:
+            continue
+        
+        imgs_for_det_batch = torch.stack(imgs_for_det, dim=0) # Correct: (B, H, W, C) tensor
+
+        # Use inference_detector_custom for batch processing and visualization
+        preds = inference_detector_custom(
+            detector, imgs_for_det_batch, gt_bboxes_list=None, 
+            vis_dir=vis_dir, view_names=view_names_with_anno
+        )
+
+        for i, pred in enumerate(preds):
+            pred_instances = pred.pred_instances
+            
+            score_thresh = getattr(args, 'score_thresh', 0.5)
+            score_mask = pred_instances.scores >= score_thresh
+            class_mask = pred_instances.labels == target_class_idx
+            match_indices = (score_mask & class_mask).nonzero(as_tuple=False).squeeze(1)
+            
+            is_attack_successful = True
+            if match_indices.numel() > 0:
+                pred_bboxes_tc = pred_instances.bboxes[match_indices]
+                
+                current_gt_bboxes = gt_bboxes_batch[i]
+                current_gt_labels = gt_labels_batch[i]
+                
+                if current_gt_bboxes is not None and len(current_gt_bboxes) > 0:
+                    sel = (current_gt_labels == target_class_idx)
+                    gt_sel_np = current_gt_bboxes[sel] if sel.any() else np.array([])
+                    
+                    if gt_sel_np.shape[0] > 0:
+                        gt_sel_t = torch.from_numpy(gt_sel_np).to(pred_bboxes_tc.device, dtype=pred_bboxes_tc.dtype)
+                        max_iou = torch.zeros(pred_bboxes_tc.shape[0], device=pred_bboxes_tc.device)
+                        for g in gt_sel_t:
+                            ious = compute_iou(pred_bboxes_tc, g.unsqueeze(0))
+                            max_iou = torch.maximum(max_iou, ious)
+                        if (max_iou >= 0.5).any():
+                            is_attack_successful = False
+            
+            if is_attack_successful:
+                successful_attacks += 1
+                
+            num_classes = len(detector.CLASSES)
+            pred_for_map = [np.empty((0, 5), dtype=np.float32) for _ in range(num_classes)]
+            for j in range(num_classes):
+                class_indices = (pred.pred_instances.labels == j)
+                if class_indices.any():
+                    boxes = pred.pred_instances.bboxes[class_indices].cpu().numpy()
+                    scores = pred.pred_instances.scores[class_indices].cpu().numpy()
+                    pred_for_map[j] = np.hstack([boxes, scores[:, np.newaxis]])
+            all_preds_for_map.append(pred_for_map)
 
     total_attacks = len(all_gts_for_map)
     if total_attacks == 0:
@@ -700,18 +737,34 @@ def first_existing(paths):
 @torch.no_grad()
 def render_and_save_final_images_mw(cameras, gaussians, pipe, bg, args, dataset, gaussians_original, relighter, save_dir: Path, set_name: str):
 	"""
-	多天气渲染与保存：使用 ori_mw 下不同天气的同视角背景，进行跨光拼接测试。
+	多天气渲染与保存：使用 ori_mw2 下不同天气的同视角背景，并为每种天气加载对应的 HDR 环境贴图，
+	使前景渲染（车辆）在该天气的光照下生成，然后与该天气背景拼接。
+
+	优先使用：
+	- 背景来源：dataset.source_path / 'ori_mw2' / <weather> / 'XX_<weather>.png'
+	- HDR 来源：dataset.source_path / '_EnvironmentMaps' / <...weather...>.hdr|.exr
+	若 ori_mw2 不存在则回退到 ori_mw（仅背景），HDR 仍尝试从 _EnvironmentMaps 加载。
+
 	规则：
-	- 背景来源：dataset.source_path / 'ori_mw' / <weather> / 'XX_<weather>.png'
 	- 其中 XX 为去掉末尾一次下划线段后的前缀（从原始 name 中去掉原来的天气后缀）。
 	- 输出：为每个天气分别创建一个输出目录，文件名仍保持原始 name（便于与 annos 匹配）。
 	返回：
 	- 一个字典 { weather_name: output_dir_path }
 	"""
-	ori_mw_root = Path(dataset.source_path) / 'ori_mw'
+	# Prefer new dataset folder layout
+	ori_mw_root = Path(dataset.source_path) / 'ori_mw2'
 	if not ori_mw_root.is_dir():
-		print(f"[消息] [MW] 未找到多天气目录: {ori_mw_root}，跳过跨光渲染。")
-		return {}
+		ori_mw_root_fallback = Path(dataset.source_path) / 'ori_mw'
+		if ori_mw_root_fallback.is_dir():
+			ori_mw_root = ori_mw_root_fallback
+			print(f"[消息] [MW] 未找到 ori_mw2，回退使用: {ori_mw_root}")
+		else:
+			print(f"[消息] [MW] 未找到多天气目录: {ori_mw_root} 或 {ori_mw_root_fallback}，跳过跨光渲染。")
+			return {}
+
+	envmaps_root = Path(dataset.source_path) / 'ori_mw2' / '_EnvironmentMaps'
+	if not envmaps_root.is_dir():
+		print(f"[警告] [MW] 未找到环境贴图目录: {envmaps_root}。将继续渲染，但前景将使用当前 envlight 光照（不做天气对应 HDR 切换）。")
 
 	# 收集天气列表（子文件夹）
 	weather_dirs = sorted([d for d in ori_mw_root.iterdir() if d.is_dir()])
@@ -737,12 +790,76 @@ def render_and_save_final_images_mw(cameras, gaussians, pipe, bg, args, dataset,
 					return p
 		return None
 
+	def _find_weather_hdr(env_root: Path, weather_name: str) -> Path | None:
+		"""
+		Try to locate a per-weather HDR/EXR file under env_root.
+		Heuristics:
+		- exact stem == weather_name
+		- stem contains weather_name (case-insensitive)
+		- filename contains weather_name
+		"""
+		if env_root is None or (not Path(env_root).is_dir()):
+			return None
+		w = str(weather_name).lower()
+		candidates = []
+		for ext in ('*.hdr', '*.exr', '*.HDR', '*.EXR'):
+			candidates.extend(list(Path(env_root).rglob(ext)))
+		if not candidates:
+			return None
+		# 1) exact stem match
+		for p in candidates:
+			if p.stem.lower() == w:
+				return p
+		# 2) stem contains weather
+		for p in candidates:
+			if w in p.stem.lower():
+				return p
+		# 3) fallback: filename contains weather
+		for p in candidates:
+			if w in p.name.lower():
+				return p
+		# 4) deterministic fallback: first candidate sorted by name
+		try:
+			return sorted(candidates, key=lambda x: x.name.lower())[0]
+		except Exception:
+			return candidates[0]
+
 	results = {}
+
+	# Preserve current envlight base to avoid side effects
+	prev_gauss_base_cpu = None
+	prev_orig_base_cpu = None
+	try:
+		prev_gauss_base_cpu = gaussians.envlight.base.detach().cpu().clone()
+	except Exception:
+		prev_gauss_base_cpu = None
+	try:
+		prev_orig_base_cpu = gaussians_original.envlight.base.detach().cpu().clone()
+	except Exception:
+		prev_orig_base_cpu = None
+
 	for wdir in weather_dirs:
 		weather_name = wdir.name
 		output_dir = save_dir / f"final_{set_name}_images_{weather_name}"
 		output_dir.mkdir(parents=True, exist_ok=True)
 		print(f"\n[消息] [MW] 开始渲染并保存 '{set_name}' 集的多天气='{weather_name}' 图像到: {output_dir}")
+
+		# Load per-weather environment map (HDR) if available; affects foreground rendering lighting.
+		hdr_path = _find_weather_hdr(envmaps_root, weather_name) if envmaps_root.is_dir() else None
+		if hdr_path is not None and Path(hdr_path).is_file():
+			try:
+				gaussians.envlight.scale = getattr(args, 'environment_scale', 1.0)
+				gaussians.envlight.load(str(hdr_path))
+				gaussians.envlight.build_mips()
+				gaussians_original.envlight.scale = getattr(args, 'environment_scale', 1.0)
+				gaussians_original.envlight.load(str(hdr_path))
+				gaussians_original.envlight.build_mips()
+				print(f"[消息] [MW] 已加载天气 '{weather_name}' 的 HDR: {hdr_path.name}")
+			except Exception as e:
+				print(f"[警告] [MW] 加载/构建天气 HDR 失败 ({weather_name}): {hdr_path}: {e}")
+		else:
+			if envmaps_root.is_dir():
+				print(f"[警告] [MW] 未找到天气 '{weather_name}' 的 HDR/EXR 于: {envmaps_root}。将使用当前 envlight 光照渲染前景。")
 
 		for cam in tqdm(cameras, desc=f"渲染 {set_name} 集(多天气={weather_name})", ncols=120):
 			name = cam.image_name
@@ -790,6 +907,20 @@ def render_and_save_final_images_mw(cameras, gaussians, pipe, bg, args, dataset,
 			save_image_rgb01(detect_img_chw, output_dir / f"{name}.png")
 
 		results[weather_name] = output_dir
+
+	# Restore previous envlight base
+	try:
+		if prev_gauss_base_cpu is not None:
+			gaussians.envlight.base = prev_gauss_base_cpu.to(device=bg.device if hasattr(bg, 'device') else torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
+			gaussians.envlight.build_mips()
+	except Exception:
+		pass
+	try:
+		if prev_orig_base_cpu is not None:
+			gaussians_original.envlight.base = prev_orig_base_cpu.to(device=bg.device if hasattr(bg, 'device') else torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
+			gaussians_original.envlight.build_mips()
+	except Exception:
+		pass
 
 	return results
 
