@@ -36,7 +36,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--input_txts",
         nargs="*",
-        default="evaluation_results_mw2.txt evaluation_results_rpga.txt",
+        default=["evaluation_results_mw2.txt", "evaluation_results_rpga3.txt", "evaluation_results_mw3.txt"],
         help="输入 txt 列表（多个文件合并）。例如：--input_txts a.txt b.txt c.txt",
     )
     p.add_argument(

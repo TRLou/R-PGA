@@ -30,21 +30,24 @@ import matplotlib.pyplot as plt
 
 # User-defined color palette (RGB values from 0-255, converted to 0-1)
 COLOR_PALETTE = [
-    (78/255.0, 98/255.0, 171/255.0),
-    (70/255.0, 158/255.0, 180/255.0),
-    (135/255.0, 207/255.0, 164/255.0),
-    (203/255.0, 233/255.0, 157/255.0),
-    (245/255.0, 251/255.0, 177/255.0),
-    (254/255.0, 232/255.0, 154/255.0),
-    (253/255.0, 185/255.0, 106/255.0),
-    (245/255.0, 117/255.0, 71/255.0),
-    (214/255.0, 64/255.0, 78/255.0),
-    (158/255.0, 1/255.0, 66/255.0),
+    (213/255.0, 105/255.0, 93/255.0),
+    (245/255.0, 176/255.0, 65/255.0),
+    (246/255.0, 218/255.0, 101/255.0),
+    (82/255.0, 190/255.0, 128/255.0),
+    (145/255.0, 223/255.0, 208/255.0),
+    (93/255.0, 173/255.0, 226/255.0),
+    (163/255.0, 105/255.0, 189/255.0),
+    (138/255.0, 112/255.0, 103/255.0),
+    (255/255.0, 188/255.0, 167/255.0),
+    (72/255.0, 79/255.0, 152/255.0),
+    (255/255.0, 255/255.0, 133/255.0),
 ]
 
 # User-defined method order
-# Note: 'rauca-e2e' was specified, but data seems to use 'raucae2e'. Using the latter.
-METHOD_ORDER = ['ori', 'fca', 'dta', 'active', 'rauca', 'raucae2e']
+METHOD_ORDER = [
+    'ori', 'das', 'fca', 'dta', 'active', 'rauca',
+    'gcac', 'grac', 'rauca-e2e', 'raucae2e', 'rpga'
+]
 
 
 def parse_args() -> argparse.Namespace:
@@ -106,7 +109,11 @@ def read_long_csv(path: Path) -> list[dict]:
         for r in reader:
             # Normalize types
             r["table_id"] = str(r.get("table_id", "")).strip()
-            r["method"] = str(r.get("method", "")).strip()
+            method_str = str(r.get("method", "")).strip()
+            # Normalize method names for consistency
+            if method_str == 'raucae2e':
+                method_str = 'rauca-e2e'
+            r["method"] = method_str
             r["variable_type"] = str(r.get("variable_type", "")).strip()
             r["variable_value"] = str(r.get("variable_value", "")).strip()
             try:

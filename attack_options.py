@@ -12,7 +12,7 @@ def get_attack_args():
     # =================================================================================
     # Training / Evaluation
     # =================================================================================
-    parser.add_argument('--epochs', type=int, default=50, help="Number of training epochs.")
+    parser.add_argument('--epochs', type=int, default=20, help="Number of training epochs.")
     parser.add_argument('--batch_size', type=int, default=4, help='Batch size for the attack.')
     parser.add_argument('--max_cams', type=int, default=0, help='Limit number of cameras for quick testing (0=all).')
     parser.add_argument('--eval_on_train', default=False, action='store_true', help="Enable evaluation on the training set at the end of each epoch.")
@@ -28,7 +28,7 @@ def get_attack_args():
     # =================================================================================
     # Detector
     # =================================================================================
-    parser.add_argument('--detector', type=str, default='yolov3', 
+    parser.add_argument('--detector', type=str, default='yolox', 
                         choices=['yolov3', 'yolox', 'faster-rcnn', 'mask-rcnn', 'd-detr', 'pvt', 'detr'],
                         help="Object detector to use for the attack.")
     parser.add_argument('--target_class_name', type=str, default='car', help="Target class name for the attack (COCO class).")
@@ -93,7 +93,7 @@ def get_attack_args():
     parser.add_argument('--enable_min_max', default=True, action=argparse.BooleanOptionalAction, help='Enable Min-Max adversarial training for envlight.')
     parser.add_argument('--min_steps', type=int, default=5, help='Number of steps to optimize albedo (min phase).')
     parser.add_argument('--max_steps', type=int, default=1, help='Number of steps to optimize envlight (max phase).')
-    parser.add_argument('--env_lr', type=float, default=1e-3, help='Learning rate for optimizing envlight in the max phase.')
+    parser.add_argument('--env_lr', type=float, default=1e-5, help='Learning rate for optimizing envlight in the max phase.')
     parser.add_argument('--diversity_lambda', type=float, default=0.1, help='Weight for diversity loss in the max phase.')
     parser.add_argument('--reset_envlight_each_epoch', default=False, action=argparse.BooleanOptionalAction, help='Reset envlight to its initial checkpoint state at the start of each epoch.')
     parser.add_argument('--shuffle_each_epoch', default=True, action=argparse.BooleanOptionalAction, help='Shuffle camera order at the start of each epoch.')
@@ -112,6 +112,14 @@ def get_attack_args():
     # =================================================================================
     parser.add_argument('--use_replay_buffer', default=True, action=argparse.BooleanOptionalAction, help='Enable replay buffer for envlight states in max phase.')
     parser.add_argument('--buffer_size', type=int, default=50, help='Max number of envlight states to keep in the replay buffer.')
+    parser.add_argument(
+        '--buffer_replace_strategy',
+        type=str,
+        default='replace_self',
+        choices=['fifo', 'replace_self'],
+        help="Replay buffer replacement policy when full: "
+             "'fifo' pops the oldest; 'replace_self' replaces the entry that was sampled for the current max-phase."
+    )
 
     # =================================================================================
     # I/O and System

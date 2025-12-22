@@ -7,6 +7,8 @@ import argparse
 from copy import deepcopy
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
+import sys
+import subprocess
 import torch
 from tqdm import tqdm
 import random
@@ -127,9 +129,12 @@ class EnvLightReplayBuffer:
 	用于存储与复用 envlight 的“基底立方体贴图”（base）。
 	仅在 CPU 上存储张量的克隆，避免显存占用与泄漏。
 	"""
-	def __init__(self, max_size: int = 100, initial_states=None):
+	def __init__(self, max_size: int = 100, initial_states=None, replace_strategy: str = "fifo"):
 		self.max_size = int(max_size)
+		self.replace_strategy = str(replace_strategy).lower().strip() if replace_strategy is not None else "fifo"
 		self.storage = []
+		# Track which entry was sampled last (for replace_self policy)
+		self.last_sampled_idx = None
 		if initial_states:
 			for st in initial_states:
 				self.push(st)
@@ -141,16 +146,31 @@ class EnvLightReplayBuffer:
 		if self.max_size <= 0:
 			return
 		cpu_copy = self._to_cpu_clone(base_tensor)
+		# Policy A: replace the entry that was sampled for the current max-phase
+		if self.replace_strategy in ("replace_self", "replace-sampled", "replace_sampled"):
+			if self.storage and self.last_sampled_idx is not None:
+				try:
+					idx = int(self.last_sampled_idx)
+				except Exception:
+					idx = None
+				if idx is not None and 0 <= idx < len(self.storage):
+					self.storage[idx] = cpu_copy
+					return
+			# If we can't replace (no sampled idx), fall back to append/FIFO behavior below.
+
+		# Policy B (default): FIFO replacement when full
 		if len(self.storage) >= self.max_size:
-			# FIFO：移除最早的一个
 			self.storage.pop(0)
 		self.storage.append(cpu_copy)
 
 	def sample(self):
 		if not self.storage:
+			self.last_sampled_idx = None
 			return None
+		idx = random.randrange(len(self.storage))
+		self.last_sampled_idx = idx
 		# 返回深拷贝，避免后续修改影响 Buffer 内容
-		return deepcopy(random.choice(self.storage))
+		return deepcopy(self.storage[idx])
 
 def sgld_step(module: torch.nn.Module, lr: float, noise_std: float):
 	"""
@@ -190,6 +210,8 @@ def main():
 		args.use_replay_buffer = False
 	if not hasattr(args, 'buffer_size'):
 		args.buffer_size = 100
+	if not hasattr(args, 'buffer_replace_strategy'):
+		args.buffer_replace_strategy = 'fifo'
 
 	# =================================================================================
 	# 2. 环境与路径设置
@@ -542,16 +564,13 @@ def main():
 	# 初始化经验重放缓冲区（可选）
 	replay_buffer = None
 	if getattr(args, 'use_replay_buffer', False):
-		# 默认总是把当前 envlight 的 base 也加入
-		initial_with_current = list(initial_bases) if initial_bases else []
-		# try:
-		# 	# 注释掉：不再将来自 checkpoint 的可能有问题的 base 加入 buffer
-		# 	initial_with_current.append(gaussians.envlight.base.detach().cpu().clone())
-		# except Exception:
-		# 	pass
+		# When using a buffer with min-max, we initialize it only with clean states from the HDR bank.
+		# The base from the checkpoint is deliberately not added to avoid starting with a potentially biased state.
+		initial_states = list(initial_bases) if initial_bases else []
 		replay_buffer = EnvLightReplayBuffer(
 			max_size=int(getattr(args, 'buffer_size', 100)),
-			initial_states=initial_with_current
+			initial_states=initial_states,
+			replace_strategy=str(getattr(args, 'buffer_replace_strategy', 'fifo'))
 		)
 
 	# --- 训练前从 Replay Buffer 采样一个干净的 base ---
@@ -629,23 +648,19 @@ def main():
 			# 若刚从 min 切换到 max，则在前向传播之前先加载重放的 envlight 状态，避免在 backward 前修改参数导致图失效
 			if phase == 'max' and prev_phase != 'max' and getattr(args, 'use_replay_buffer', False) and replay_buffer is not None:
 				try:
-					if random.random() < 0.95:
-						sampled_base = replay_buffer.sample()
-						print("采样 base!")
-						if sampled_base is not None:
-							print("切换base")
-							gaussians.envlight.base = sampled_base.to(device=bg.device if hasattr(bg, 'device') else device)
-							# 同步给 gaussians_original，确保两者共享同一环境光
-							with torch.no_grad():
-								try:
-									gaussians_original.envlight.base = gaussians.envlight.base.detach().clone()
-								except Exception:
-									pass
-							# gaussians.envlight.build_mips()   # 是不是不需要？重复了？
-							print("[消息] [ReplayBuffer] 已从缓冲区加载 base 并重建 mips。")
+					# Always sample (no exploration branch)
+					sampled_base = replay_buffer.sample()
+					if sampled_base is not None:
+						gaussians.envlight.base = sampled_base.to(device=bg.device if hasattr(bg, 'device') else device)
+						# 同步给 gaussians_original，确保两者共享同一环境光
+						with torch.no_grad():
+							try:
+								gaussians_original.envlight.base = gaussians.envlight.base.detach().clone()
+							except Exception:
+								pass
+						print("[消息] [ReplayBuffer] 已从缓冲区加载 base。")
 					else:
-						# 5% 概率探索：保持当前状态（不做变更）
-						print("[消息] [ReplayBuffer] 探索：保持当前 envlight 状态。")
+						print("[警告] [ReplayBuffer] 采样失败（buffer 为空），将使用当前 envlight 状态。")
 				except Exception as e:
 					print(f"[警告] [ReplayBuffer] 加载采样状态失败: {e}")
 
@@ -920,6 +935,39 @@ def main():
 			)
 		else:
 			print("[消息] [最终评估] 已跳过渲染多天气图片，将不会执行离線評估。")
+
+		# --- (NEW) Also export evaluation_results_rpga.txt (same format as evaluate_img_rpga.py) ---
+		# This evaluates final_*_images_* folders under save_dir and writes a unified summary txt.
+		try:
+			eval_txt_path = save_dir / 'evaluation_results_rpga.txt'
+			script_path = Path('/workspace/RGA/evaluate_img_rpga.py')
+			anno_dir = Path(dataset.source_path) / 'annos'
+			mmdet_base = Path('/workspace/RGA/mmdet_files')
+
+			if script_path.is_file() and anno_dir.is_dir() and mmdet_base.is_dir():
+				cmd = [
+					sys.executable, str(script_path),
+					'--exp_dir', str(save_dir),
+					'--anno_dir', str(anno_dir),
+					'--mmdet_base', str(mmdet_base),
+					'--device', str(args.device),
+					'--all_detectors',
+					'--score_thresh', str(getattr(args, 'score_thresh', 0.5)),
+					'--output_file', str(eval_txt_path),
+				]
+				print(f"[消息] [最终评估] 正在生成汇总文件: {eval_txt_path.name}")
+				subprocess.run(cmd, check=False)
+				if eval_txt_path.is_file():
+					print(f"[消息] [最终评估] 已生成: {eval_txt_path}")
+				else:
+					print("[警告] [最终评估] evaluate_img_rpga.py 未生成 evaluation_results_rpga.txt（请检查脚本输出日志）。")
+			else:
+				print(
+					f"[警告] [最终评估] 跳过生成 evaluation_results_rpga.txt："
+					f"script={script_path.is_file()}, anno_dir={anno_dir.is_dir()}, mmdet_base={mmdet_base.is_dir()}"
+				)
+		except Exception as e:
+			print(f"[警告] [最终评估] 生成 evaluation_results_rpga.txt 失败: {e}")
 
 		# --- STAGE 2: Evaluate on saved images with all detectors ---
 		log_file_path = save_dir / 'training_log.txt'

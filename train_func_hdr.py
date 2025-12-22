@@ -767,7 +767,11 @@ def render_and_save_final_images_mw(cameras, gaussians, pipe, bg, args, dataset,
 		print(f"[警告] [MW] 未找到环境贴图目录: {envmaps_root}。将继续渲染，但前景将使用当前 envlight 光照（不做天气对应 HDR 切换）。")
 
 	# 收集天气列表（子文件夹）
-	weather_dirs = sorted([d for d in ori_mw_root.iterdir() if d.is_dir()])
+	# 注意：跳过 _EnvironmentMaps / __EnvironmentMaps 等非天气目录，避免生成 final_full_images__EnvironmentMaps
+	weather_dirs = sorted([
+		d for d in ori_mw_root.iterdir()
+		if d.is_dir() and (not d.name.startswith('_')) and ('EnvironmentMaps' not in d.name)
+	])
 	if not weather_dirs:
 		print(f"[消息] [MW] 目录 '{ori_mw_root}' 下无天气子文件夹，跳过跨光渲染。")
 		return {}

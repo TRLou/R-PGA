@@ -72,8 +72,8 @@ def parse_args():
 	)
 	parser.add_argument(
 		'--exp_dir',
-		default='./RGA_output/1218_191840_Beijing',
-		help='运行输出目录（例如 RGA_output/1218_191840_Beijing），其下包含 final_full_images_Dark 等文件夹'
+		default='./RGA_output/1220_195202_Beijing',
+		help='运行输出目录（例如 RGA_output/1220_195003_Beijing），其下包含 final_full_images_Dark 等文件夹'
 	)
 	parser.add_argument(
 		'--anno_dir',
@@ -157,7 +157,7 @@ def _discover_weather_dirs(exp_dir: Path, skip_suffix: str) -> list[tuple[str, P
 			continue
 		weather = m.group('weather')
 		# Ignore special/internal folders if any (e.g., "__EnvironmentMaps" used for debugging)
-		if weather.startswith('_'):
+		if weather.startswith('_') or 'EnvironmentMaps' in weather:
 			continue
 		out.append((weather, p))
 	return sorted(out, key=lambda x: x[0].lower())
