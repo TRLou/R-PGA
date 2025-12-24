@@ -676,7 +676,7 @@ def main():
 
 			# --- Forward Pass and Loss Calculation（在可能的重放切换之后进行） ---
 			is_first_batch = pbar.n == 0
-			batch_total_loss, batch_cls_loss, batch_reg_loss, detect_imgs, vis_data = compute_batch_loss(
+			batch_total_loss, batch_cls_loss, batch_reg_loss, detect_imgs, vis_data, per_sample_losses = compute_batch_loss(
 				cam_batch, gaussians, pipe, bg, global_step, args, dataset, 
 				gaussians_original, relighter, detector, save_dir, epoch, batch_idx
 			)
@@ -705,9 +705,27 @@ def main():
 			if phase == 'min':
 				# --- 最小化阶段：仅优化 albedo ---
 				print("is in min phase")
+				# Optional: add within-batch loss variance regularizer
+				if bool(getattr(args, 'enable_loss_var_reg', False)) and per_sample_losses is not None:
+					w = float(getattr(args, 'loss_var_reg_weight', 0.0))
+					if w != 0.0 and per_sample_losses.numel() >= 2:
+						loss_var = torch.var(per_sample_losses, unbiased=False)
+						batch_total_loss = batch_total_loss + (w * loss_var)
+					elif w != 0.0:
+						# batch size < 2 -> variance is 0 by definition
+						loss_var = per_sample_losses.new_tensor(0.0)
+					else:
+						loss_var = None
+				else:
+					loss_var = None
 				optimizer_min.zero_grad()
 				batch_total_loss.backward()
 				logger.log_iteration(batch_total_loss.item(), batch_cls_loss.item(), batch_reg_loss.item())
+				if loss_var is not None:
+					try:
+						print(f"[消息] [VarReg] loss_var={float(loss_var.item()):.6f}, weight={float(getattr(args, 'loss_var_reg_weight', 0.0))}")
+					except Exception:
+						pass
 				print("requires_grad(albedo_init):", gaussians._albedo_init.requires_grad)
 				print("grad(albedo_init) is None:", gaussians._albedo_init.grad is None)
 				if gaussians._albedo_init.grad is not None:

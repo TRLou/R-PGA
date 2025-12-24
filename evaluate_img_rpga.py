@@ -335,6 +335,16 @@ def _write_txt_report(
 	lines.append(f"方法数量：{len(methods)}，天气数量：{len(all_weathers)}，距离种类：{len(all_distances)}，俯仰角种类：{len(all_pitches)}，检测器数量：{len(all_detectors)}")
 	lines.append("")
 
+	# 0) overall
+	lines.append("========== 表 0：整体平均（Overall）==========")
+	for m in methods:
+		idxs = idxs_where(method=m)
+		asr, ap50, n, succ = _compute_metrics_for_indices(idxs, records, preds_for_map, gts_for_map, target_class_idx)
+		if n == 0:
+			continue
+		lines.append(f"整体平均：{m}方法的平均ASR是{asr:.4f}，平均AP@0.5是{ap50:.4f}（成功{succ}/{n}）")
+	lines.append("")
+
 	# 1) pitch
 	lines.append("========== 表 1：控制变量【俯仰角 pitch】==========")
 	for m in methods:

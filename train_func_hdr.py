@@ -237,7 +237,7 @@ def compute_batch_loss(cam_batch: List, gaussians: GaussianModel, pipe: dict, bg
 		detect_imgs.append(detect_img_chw)
 
 	if not imgs_for_det:
-		return None, None, None, None, None
+		return None, None, None, None, None, None
 	
 	imgs_for_det_batch = torch.stack(imgs_for_det, dim=0)
 	
@@ -261,6 +261,7 @@ def compute_batch_loss(cam_batch: List, gaussians: GaussianModel, pipe: dict, bg
 	batch_total_loss = torch.tensor(0.0, device=imgs_for_det_batch.device)
 	batch_cls_loss = torch.tensor(0.0, device=imgs_for_det_batch.device)
 	batch_reg_loss = torch.tensor(0.0, device=imgs_for_det_batch.device)
+	per_sample_total_losses: list[torch.Tensor] = []
 	for i, pred in enumerate(preds):
 		pred_instances = pred.pred_instances
 		score_mask = pred_instances.scores >= 0.5
@@ -279,11 +280,13 @@ def compute_batch_loss(cam_batch: List, gaussians: GaussianModel, pipe: dict, bg
 		)
 		if not loss.requires_grad:
 			loss = loss + (imgs_for_det_batch.float().sum() * 0.0)
+		per_sample_total_losses.append(loss)
 		batch_total_loss += loss
 		batch_cls_loss += cls_loss
 		batch_reg_loss += reg_loss
 	
-	return batch_total_loss, batch_cls_loss, batch_reg_loss, detect_imgs, vis_data_batch
+	per_sample_total_losses_t = torch.stack(per_sample_total_losses, dim=0) if per_sample_total_losses else None
+	return batch_total_loss, batch_cls_loss, batch_reg_loss, detect_imgs, vis_data_batch, per_sample_total_losses_t
 
 @torch.no_grad()
 def evaluate(test_cameras, gaussians, pipe, bg, args, dataset, gaussians_original, relighter, detector, epoch, save_dir, set_name='test'):

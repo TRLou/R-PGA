@@ -34,6 +34,52 @@ def get_attack_args():
     parser.add_argument('--target_class_name', type=str, default='car', help="Target class name for the attack (COCO class).")
     parser.add_argument('--score_thresh', type=float, default=0.5, help="Score threshold for detection.")
 
+
+ 
+    # =================================================================================
+    # Albedo Optimization (Min Phase)
+    # =================================================================================
+    parser.add_argument('--optimizer', type=str, default='adamw', choices=['adam', 'sgd', 'adamw'], help='Optimizer to use for albedo.')
+    parser.add_argument('--lr', type=float, default=0.01, help="Learning rate for the albedo optimizer.")
+    parser.add_argument('--momentum', type=float, default=0.9, help='Momentum for the SGD optimizer.') # 默认0.9
+    parser.add_argument('--perturb_albedo', default=True, action=argparse.BooleanOptionalAction, help='随机初始化albedo')
+    parser.add_argument('--perturb_budget_factor', type=float, default=1e-8, help='Factor (n) for calculating the albedo perturbation budget.')
+    parser.add_argument('--albedo_init_method', type=str, default='perturb', choices=['perturb', 'random'], help='Albedo initialization method: "perturb" adds random noise to original albedo, "random" initializes randomly within original range.')
+    parser.add_argument('--reg_loss_weight', type=float, default=0.0, help='Weight for the regression loss component in the total adversarial loss.')
+    parser.add_argument(
+        '--enable_loss_var_reg',
+        default=True,
+        action=argparse.BooleanOptionalAction,
+        help='If enabled, add a regularization term in MIN phase: variance of per-sample losses within the current batch.'
+    )
+    parser.add_argument(
+        '--loss_var_reg_weight',
+        type=float,
+        default=0.001,
+        help='Weight (lambda) for the MIN-phase per-batch loss variance regularizer.'
+    )
+
+    # =================================================================================
+    # Min-Max Adversarial Training (EnvLight)
+    # =================================================================================
+    parser.add_argument('--enable_min_max', default=True, action=argparse.BooleanOptionalAction, help='Enable Min-Max adversarial training for envlight.')
+    parser.add_argument('--min_steps', type=int, default=5, help='Number of steps to optimize albedo (min phase).')
+    parser.add_argument('--max_steps', type=int, default=1, help='Number of steps to optimize envlight (max phase).')
+    parser.add_argument('--env_lr', type=float, default=1e-4, help='Learning rate for optimizing envlight in the max phase.')
+    parser.add_argument('--diversity_lambda', type=float, default=0.1, help='Weight for diversity loss in the max phase.')
+    parser.add_argument('--reset_envlight_each_epoch', default=False, action=argparse.BooleanOptionalAction, help='Reset envlight to its initial checkpoint state at the start of each epoch.')
+    parser.add_argument('--shuffle_each_epoch', default=True, action=argparse.BooleanOptionalAction, help='Shuffle camera order at the start of each epoch.')
+    parser.add_argument('--env_delta_max', type=float, default=1e-6, help='Hard clamp range for envlight.base_train parameter: [-env_delta_max, env_delta_max].')
+    parser.add_argument('--env_init_bound', type=float, default=1e-6, help='Hard clamp range for envlight.init_base latent tensor: [-env_init_bound, env_init_bound].')
+    
+    # =================================================================================
+    # SGLD Settings for Max Phase (optional)
+    # =================================================================================
+    parser.add_argument('--use_sgld', default=True, action='store_true', help='Use SGLD for envlight updates in the max phase instead of Adam.')
+    parser.add_argument('--sgld_lr', type=float, default=1e-2, help='SGLD learning rate for envlight updates.')
+    parser.add_argument('--sgld_noise_std', type=float, default=1e-4, help='Std of Gaussian noise injected in SGLD updates.')
+
+
     # =================================================================================
     # Environment / Relighting
     # =================================================================================
@@ -50,64 +96,6 @@ def get_attack_args():
     parser.add_argument('--hdr_vis_seed', type=int, default=0, help='Random seed for selecting views in HDR visualization.')
 
     # =================================================================================
-    # Debug / Visualization I/O (optional)
-    # =================================================================================
-    parser.add_argument('--save_temp_imgs_for_det', default=False, action=argparse.BooleanOptionalAction, help="Save temp images used for detector input (temp_imgs_for_det/*).")
-    parser.add_argument('--save_visualizations', default=False, action=argparse.BooleanOptionalAction, help="Save training visualization grids (visualizations/*).")
-    
-    # =================================================================================
-    # Final Visualization (optional)
-    # =================================================================================
-    parser.add_argument('--save_final_full_images_mw', default=True, action=argparse.BooleanOptionalAction, help="At final stage, render multi-weather images and run OFFLINE evaluation on them.")
-    parser.add_argument('--save_final_eval_vis', default=True, action=argparse.BooleanOptionalAction, help="During final offline evaluation, save detection results (images with bboxes).")
-
-    # =================================================================================
-    # Albedo Optimization (Min Phase)
-    # =================================================================================
-    parser.add_argument('--optimizer', type=str, default='adamw', choices=['adam', 'sgd', 'adamw'], help='Optimizer to use for albedo.')
-    parser.add_argument('--lr', type=float, default=0.01, help="Learning rate for the albedo optimizer.")
-    parser.add_argument('--momentum', type=float, default=0.9, help='Momentum for the SGD optimizer.') # 默认0.9
-    parser.add_argument('--perturb_albedo', default=True, action=argparse.BooleanOptionalAction, help='随机初始化albedo')
-    parser.add_argument('--perturb_budget_factor', type=float, default=1e-8, help='Factor (n) for calculating the albedo perturbation budget.')
-    parser.add_argument('--albedo_init_method', type=str, default='perturb', choices=['perturb', 'random'], help='Albedo initialization method: "perturb" adds random noise to original albedo, "random" initializes randomly within original range.')
-    parser.add_argument('--reg_loss_weight', type=float, default=0.0, help='Weight for the regression loss component in the total adversarial loss.')
-
-    # =================================================================================
-    # Pareto Optimization Strategy (optional)
-    # =================================================================================
-    parser.add_argument('--use_pareto_projection', default=False, action='store_true', help='Enable Momentum-guided Gradient Projection (Pareto Optimization).')
-    parser.add_argument('--pareto_beta', type=float, default=0.5, help='Beta value for Pareto momentum update.')
-
-    # =================================================================================
-    # LR Scheduler Settings (for SGD)
-    # =================================================================================
-    parser.add_argument('--use_lr_scheduler', default=True, action=argparse.BooleanOptionalAction, help="Enable learning rate scheduler for SGD optimizer.")
-    parser.add_argument('--lr_scheduler_type', type=str, default='cosine', choices=['cosine', 'step'], help="Type of learning rate scheduler to use.")
-    parser.add_argument('--lr_step_size', type=int, default=10, help="Step size for StepLR scheduler.")
-    parser.add_argument('--lr_gamma', type=float, default=0.5, help="Gamma for StepLR scheduler.")
-
-
-    # =================================================================================
-    # Min-Max Adversarial Training (EnvLight)
-    # =================================================================================
-    parser.add_argument('--enable_min_max', default=True, action=argparse.BooleanOptionalAction, help='Enable Min-Max adversarial training for envlight.')
-    parser.add_argument('--min_steps', type=int, default=5, help='Number of steps to optimize albedo (min phase).')
-    parser.add_argument('--max_steps', type=int, default=1, help='Number of steps to optimize envlight (max phase).')
-    parser.add_argument('--env_lr', type=float, default=1e-5, help='Learning rate for optimizing envlight in the max phase.')
-    parser.add_argument('--diversity_lambda', type=float, default=0.1, help='Weight for diversity loss in the max phase.')
-    parser.add_argument('--reset_envlight_each_epoch', default=False, action=argparse.BooleanOptionalAction, help='Reset envlight to its initial checkpoint state at the start of each epoch.')
-    parser.add_argument('--shuffle_each_epoch', default=True, action=argparse.BooleanOptionalAction, help='Shuffle camera order at the start of each epoch.')
-    parser.add_argument('--env_delta_max', type=float, default=1e-6, help='Hard clamp range for envlight.base_train parameter: [-env_delta_max, env_delta_max].')
-    parser.add_argument('--env_init_bound', type=float, default=1e-6, help='Hard clamp range for envlight.init_base latent tensor: [-env_init_bound, env_init_bound].')
-    
-    # =================================================================================
-    # SGLD Settings for Max Phase (optional)
-    # =================================================================================
-    parser.add_argument('--use_sgld', default=True, action='store_true', help='Use SGLD for envlight updates in the max phase instead of Adam.')
-    parser.add_argument('--sgld_lr', type=float, default=1e-2, help='SGLD learning rate for envlight updates.')
-    parser.add_argument('--sgld_noise_std', type=float, default=1e-4, help='Std of Gaussian noise injected in SGLD updates.')
-
-    # =================================================================================
     # Replay Buffer for EnvLight
     # =================================================================================
     parser.add_argument('--use_replay_buffer', default=True, action=argparse.BooleanOptionalAction, help='Enable replay buffer for envlight states in max phase.')
@@ -121,11 +109,33 @@ def get_attack_args():
              "'fifo' pops the oldest; 'replace_self' replaces the entry that was sampled for the current max-phase."
     )
 
+
+    # =================================================================================
+    # LR Scheduler Settings (for SGD)
+    # =================================================================================
+    parser.add_argument('--use_lr_scheduler', default=True, action=argparse.BooleanOptionalAction, help="Enable learning rate scheduler for SGD optimizer.")
+    parser.add_argument('--lr_scheduler_type', type=str, default='cosine', choices=['cosine', 'step'], help="Type of learning rate scheduler to use.")
+    parser.add_argument('--lr_step_size', type=int, default=10, help="Step size for StepLR scheduler.")
+    parser.add_argument('--lr_gamma', type=float, default=0.5, help="Gamma for StepLR scheduler.")
+
     # =================================================================================
     # I/O and System
     # =================================================================================
     parser.add_argument('--save_dir', type=str, default='RGA_output', help="Directory to save outputs.")
     parser.add_argument('--device', type=str, default='cuda', help="Device to run the training on.")
+
+    # =================================================================================
+    # Debug / Visualization I/O (optional)
+    # =================================================================================
+    parser.add_argument('--save_temp_imgs_for_det', default=False, action=argparse.BooleanOptionalAction, help="Save temp images used for detector input (temp_imgs_for_det/*).")
+    parser.add_argument('--save_visualizations', default=False, action=argparse.BooleanOptionalAction, help="Save training visualization grids (visualizations/*).")
+    
+    # =================================================================================
+    # Final Visualization (optional)
+    # =================================================================================
+    parser.add_argument('--save_final_full_images_mw', default=True, action=argparse.BooleanOptionalAction, help="At final stage, render multi-weather images and run OFFLINE evaluation on them.")
+    parser.add_argument('--save_final_eval_vis', default=True, action=argparse.BooleanOptionalAction, help="During final offline evaluation, save detection results (images with bboxes).")
+
 
     args = get_combined_args(parser)
     return args, model_params, pipeline_params
