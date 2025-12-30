@@ -10,8 +10,10 @@ Table 1 (pitch): line plot, one curve per method
 Table 2 (distance): line plot, one curve per method
 Table 3 (weather): grouped bar chart, one group per weather, methods compared within each group
 Table 4 (detector): grouped bar chart, one group per detector, methods compared within each group
+Table 5 (angle): line plot, one curve per method
 
-ASR and AP@0.5 are plotted separately: 2 figures per table, 8 figures total.
+ASR and AP@0.5 are plotted separately: 2 figures per table.
+Note: Table 5 (angle) is OPTIONAL. If table_id==5 is absent in CSV, it will be skipped.
 """
 
 from __future__ import annotations
@@ -71,7 +73,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--dpi",
         type=int,
-        default=200,
+        default=500,
         help="DPI for PNG output",
     )
     p.add_argument(
@@ -162,6 +164,17 @@ def _parse_distance_value(v: str) -> int | None:
     return None
 
 
+def _parse_angle_value(v: str) -> int | None:
+    # angle240 / Angle-30 ...
+    v = v.strip()
+    if v.lower().startswith("angle"):
+        try:
+            return int(v[5:])
+        except Exception:
+            return None
+    return None
+
+
 def _group_by_method(rows: List[dict]) -> Dict[str, List[dict]]:
     out: Dict[str, List[dict]] = {}
     for r in rows:
@@ -184,7 +197,7 @@ def _save_fig(fig, out_path: Path, fmt: str, dpi: int) -> None:
 def plot_line_table(
     rows: List[dict],
     *,
-    x_kind: str,  # "pitch" or "distance"
+    x_kind: str,  # "pitch" / "distance" / "angle"
     metric_key: str,  # "mean_asr" / "mean_ap50"
     title: str,
     xlabel: str,
@@ -205,8 +218,10 @@ def plot_line_table(
         for r in pts:
             if x_kind == "pitch":
                 xv = _parse_pitch_value(r["variable_value"])
-            else:
+            elif x_kind == "distance":
                 xv = _parse_distance_value(r["variable_value"])
+            else:
+                xv = _parse_angle_value(r["variable_value"])
             if xv is None:
                 continue
             xs.append(xv)
@@ -291,6 +306,9 @@ def main() -> None:
     t2 = [r for r in rows if r.get("table_id") == "2"]
     t3 = [r for r in rows if r.get("table_id") == "3"]
     t4 = [r for r in rows if r.get("table_id") == "4"]
+    t5 = [r for r in rows if r.get("table_id") == "5"]
+    if not t5:
+        print("[INFO] Table 5 (angle) not found in CSV (table_id==5). Will plot tables 1-4 only.")
 
     metrics: List[Tuple[str, str, str]] = []
     # (metric_key, metric_name, ylabel)
@@ -343,6 +361,18 @@ def main() -> None:
                 xlabel="detector",
                 ylabel=ylabel,
                 out_path=output_dir / f"table4_detector_{metric_name}.{args.format}",
+                fmt=args.format,
+                dpi=args.dpi,
+            )
+        if t5:
+            plot_line_table(
+                t5,
+                x_kind="angle",
+                metric_key=metric_key,
+                title=f"Angle comparison - {metric_name}",
+                xlabel="angle",
+                ylabel=ylabel,
+                out_path=output_dir / f"table5_angle_{metric_name}.{args.format}",
                 fmt=args.format,
                 dpi=args.dpi,
             )

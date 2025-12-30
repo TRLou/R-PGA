@@ -123,7 +123,22 @@ def save_visualization_grid(save_path: Path, images_dict: dict):
 		grid_img.save(save_path)
 
 
-def compute_batch_loss(cam_batch: List, gaussians: GaussianModel, pipe: dict, bg: torch.Tensor, global_step: int, args: argparse.Namespace, dataset: ModelParams, gaussians_original: GaussianModel, relighter: LBMRelighter, detector, save_dir: Path, epoch: int, batch_idx: int):
+def compute_batch_loss(
+	cam_batch: List,
+	gaussians: GaussianModel,
+	pipe: dict,
+	bg: torch.Tensor,
+	global_step: int,
+	args: argparse.Namespace,
+	dataset: ModelParams,
+	gaussians_original: GaussianModel,
+	relighter: LBMRelighter,
+	detector,
+	save_dir: Path,
+	epoch: int,
+	batch_idx: int,
+	det_vis_dir: Path | None = None,
+):
 	"""
 	Renders a batch of cameras, performs detection, and computes the adversarial loss.
 	This function encapsulates the forward pass logic.
@@ -253,9 +268,18 @@ def compute_batch_loss(cam_batch: List, gaussians: GaussianModel, pipe: dict, bg
 		except Exception as e:
 			print(f"[警告] 保存 temp_imgs_for_det 失败: {e}")
 	
+	if det_vis_dir is not None:
+		try:
+			det_vis_dir.mkdir(parents=True, exist_ok=True)
+		except Exception:
+			pass
+
 	preds = inference_detector_custom(
-		detector, imgs_for_det_batch, gt_bboxes_list=gt_bboxes_batch,
-		vis_dir=None
+		detector,
+		imgs_for_det_batch,
+		gt_bboxes_list=gt_bboxes_batch,
+		vis_dir=det_vis_dir,
+		view_names=view_names_batch if det_vis_dir is not None else None,
 	)
 
 	batch_total_loss = torch.tensor(0.0, device=imgs_for_det_batch.device)

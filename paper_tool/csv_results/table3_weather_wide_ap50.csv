@@ -8,4 +8,4 @@ evaluation_results_mw2::raucae2e,0.0389,0.0586,0.0653,0.1546,0.1369,0.0689
 evaluation_results_mw3::das,0.5378,0.5817,0.5626,0.5822,0.5578,0.5613
 evaluation_results_mw3::gcac,0.047,0.1168,0.0685,0.2098,0.1697,0.1634
 evaluation_results_mw3::grac,0.1419,0.1834,0.1579,0.2552,0.2079,0.1505
-evaluation_results_rpga2::1220_195003_Beijing,0.1246,0.0327,0.05,0.0478,0.0401,0.0451
+evaluation_results_rpga2::R-PGA,0.1246,0.0327,0.05,0.0478,0.0401,0.0451

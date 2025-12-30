@@ -1,3 +1,10 @@
+import matplotlib
+# Ensure a non-interactive backend for headless training environments.
+# Must be set BEFORE importing pyplot.
+try:
+    matplotlib.use("Agg")
+except Exception:
+    pass
 import matplotlib.pyplot as plt
 from pathlib import Path
 import numpy as np

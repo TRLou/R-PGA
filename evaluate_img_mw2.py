@@ -73,7 +73,7 @@ def parse_args():
     parser.add_argument('--target_class_name', type=str, default='car', help='Target class name for ASR calculation.')
     parser.add_argument('--score_thresh', type=float, default=0.5, help='Score threshold for considering a detection valid.')
     parser.add_argument('--device', default='cuda:0', help='Device to use for inference (e.g., "cuda:0" or "cpu").')
-    parser.add_argument('--output_file', default='evaluation_results_mw2.txt', help='输出 txt 文件名/路径（中文汇总，不输出 json）')
+    parser.add_argument('--output_file', default='evaluation_results_mw2_5table.txt', help='输出 txt 文件名/路径（中文汇总，不输出 json）')
     parser.add_argument('--mw2_suffix', default='mw2', help='只评估以该后缀结尾的方法文件夹（默认 mw2，如 dta_mw2/ori_mw2 等）')
     parser.add_argument('--skip_prefix', default='_', help='跳过以该前缀开头的子目录（默认 _，用于忽略 _EnvironmentMaps 等）')
     return parser.parse_args()
@@ -101,6 +101,18 @@ def _parse_pitch_distance(stem: str) -> tuple[int | None, int | None]:
     pitch = _safe_int_from_regex(stem, r'(?i)pitch(\d+)')
     distance = _safe_int_from_regex(stem, r'(?i)distance(\d+)')
     return pitch, distance
+
+
+def _parse_pitch_angle_distance(stem: str) -> tuple[int | None, int | None, int | None]:
+    """
+    Parse discrete physical metadata from image filename stem.
+    Expected patterns like: ori_pitch5_angle240_distance5_sunny
+    Angle aliases supported: angle / azimuth / azi
+    """
+    pitch = _safe_int_from_regex(stem, r'(?i)pitch(-?\d+)')
+    angle = _safe_int_from_regex(stem, r'(?i)(?:angle|azimuth|azi)(-?\d+)')
+    distance = _safe_int_from_regex(stem, r'(?i)distance(-?\d+)')
+    return pitch, angle, distance
 
 
 def _discover_mw2_root_dirs(exp_eval_dir: Path, mw2_suffix: str) -> list[Path]:
@@ -229,7 +241,7 @@ def _evaluate_weather_dir_collect(
             if (max_iou >= 0.5).any():
                 is_attack_successful = False
 
-        pitch, distance = _parse_pitch_distance(img_path.stem)
+        pitch, angle, distance = _parse_pitch_angle_distance(img_path.stem)
 
         local_records.append({
             'method': method_name,
@@ -237,6 +249,7 @@ def _evaluate_weather_dir_collect(
             'detector': detector_name,
             'image_name': img_path.name,
             'pitch': pitch,
+            'angle': angle,
             'distance': distance,
             'attack_successful': bool(is_attack_successful),
         })
@@ -285,6 +298,7 @@ def _write_txt_report(
 ):
     methods = sorted({r['method'] for r in records})
     all_pitches = sorted({r['pitch'] for r in records if r.get('pitch') is not None})
+    all_angles = sorted({r['angle'] for r in records if r.get('angle') is not None})
     all_distances = sorted({r['distance'] for r in records if r.get('distance') is not None})
     all_weathers = sorted({r['weather'] for r in records})
     all_detectors = sorted({r['detector'] for r in records})
@@ -304,7 +318,9 @@ def _write_txt_report(
     lines: list[str] = []
     lines.append("========== MW2 评估汇总（中文 txt）==========")
     lines.append(f"总样本数（逐图统计）：{len(records)}")
-    lines.append(f"方法数量：{len(methods)}，天气数量：{len(all_weathers)}，距离种类：{len(all_distances)}，俯仰角种类：{len(all_pitches)}，检测器数量：{len(all_detectors)}")
+    lines.append(
+        f"方法数量：{len(methods)}，天气数量：{len(all_weathers)}，距离种类：{len(all_distances)}，俯仰角种类：{len(all_pitches)}，方位角种类：{len(all_angles)}，检测器数量：{len(all_detectors)}"
+    )
     lines.append("")
 
     # 1) pitch 对比表
@@ -353,6 +369,18 @@ def _write_txt_report(
             if n == 0:
                 continue
             lines.append(f"变量检测器：{det}，{m}方法的平均ASR是{asr:.4f}，平均AP@0.5是{ap50:.4f}（成功{succ}/{n}）")
+        lines.append("")
+
+    # 5) angle 对比表
+    lines.append("========== 表 5：控制变量【方位角 angle】==========")
+    for m in methods:
+        lines.append(f"【方法：{m}】")
+        for a in all_angles:
+            idxs = [i for i in idxs_where(method=m) if records[i].get('angle') == a]
+            asr, ap50, n, succ = _compute_metrics_for_indices(idxs, records, preds_for_map, gts_for_map, target_class_idx)
+            if n == 0:
+                continue
+            lines.append(f"变量方位角：angle{a}，{m}方法的平均ASR是{asr:.4f}，平均AP@0.5是{ap50:.4f}（成功{succ}/{n}）")
         lines.append("")
 
     output_file.parent.mkdir(parents=True, exist_ok=True)

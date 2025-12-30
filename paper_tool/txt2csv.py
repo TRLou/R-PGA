@@ -6,6 +6,7 @@
 输出：
 1) all_tables_long.csv：长表（推荐），每行一条 (method, variable_type, variable_value) 的统计
 2) 每张表各自的长表：table1_pitch_long.csv / table2_distance_long.csv / table3_weather_long.csv / table4_detector_long.csv
+   （可选）若 txt 中存在 表5：控制变量【方位角 angle】，也会输出 table5_angle_long.csv
 3) 每张表各自的宽表（pivot）：*_wide_asr.csv 与 *_wide_ap50.csv（行=方法，列=变量取值）
 """
 
@@ -24,6 +25,7 @@ PITCH_RE = re.compile(r"^变量俯仰角：pitch(\d+)，(.+?)方法的平均ASR�
 DIST_RE = re.compile(r"^变量距离：distance(\d+)，(.+?)方法的平均ASR是([0-9.]+)，平均AP@0\.5是([0-9.]+)（成功(\d+)/(\d+)）$")
 WEATHER_RE = re.compile(r"^变量天气：(.+?)，(.+?)方法的平均ASR是([0-9.]+)，平均AP@0\.5是([0-9.]+)（成功(\d+)/(\d+)）$")
 DETECTOR_RE = re.compile(r"^变量检测器：(.+?)，(.+?)方法的平均ASR是([0-9.]+)，平均AP@0\.5是([0-9.]+)（成功(\d+)/(\d+)）$")
+ANGLE_RE = re.compile(r"^变量方位角：angle(-?\d+)，(.+?)方法的平均ASR是([0-9.]+)，平均AP@0\.5是([0-9.]+)（成功(\d+)/(\d+)）$")
 
 
 def parse_args() -> argparse.Namespace:
@@ -36,7 +38,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--input_txts",
         nargs="*",
-        default=["evaluation_results_mw2.txt", "evaluation_results_rpga3.txt", "evaluation_results_mw3.txt"],
+        default=["evaluation_results_mw2.txt", "evaluation_results_rpga2.txt", "evaluation_results_mw3.txt"],
         help="输入 txt 列表（多个文件合并）。例如：--input_txts a.txt b.txt c.txt",
     )
     p.add_argument(
@@ -63,6 +65,8 @@ def _infer_variable_type(table_title: str) -> str:
         return "pitch"
     if "距离" in table_title or "distance" in table_title:
         return "distance"
+    if "方位角" in table_title or "angle" in table_title or "azimuth" in table_title:
+        return "angle"
     if "天气" in table_title or "weather" in table_title:
         return "weather"
     if "检测器" in table_title or "detector" in table_title:
@@ -131,6 +135,15 @@ def parse_txt(txt_path: Path, *, run: str) -> list[dict]:
             if not mm:
                 continue
             variable_value = mm.group(1)
+            asr = float(mm.group(3))
+            ap50 = float(mm.group(4))
+            succ = int(mm.group(5))
+            total = int(mm.group(6))
+        elif cur_var_type == "angle":
+            mm = ANGLE_RE.match(line)
+            if not mm:
+                continue
+            variable_value = f"angle{mm.group(1)}"
             asr = float(mm.group(3))
             ap50 = float(mm.group(4))
             succ = int(mm.group(5))
@@ -261,6 +274,7 @@ def main() -> None:
         "2": "distance",
         "3": "weather",
         "4": "detector",
+        "5": "angle",
     }
 
     for tid, sub in sorted(by_table.items(), key=lambda x: int(x[0]) if x[0].isdigit() else x[0]):

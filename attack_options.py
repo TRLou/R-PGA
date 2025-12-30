@@ -48,7 +48,7 @@ def get_attack_args():
     parser.add_argument('--reg_loss_weight', type=float, default=0.0, help='Weight for the regression loss component in the total adversarial loss.')
     parser.add_argument(
         '--enable_loss_var_reg',
-        default=True,
+        default=False,
         action=argparse.BooleanOptionalAction,
         help='If enabled, add a regularization term in MIN phase: variance of per-sample losses within the current batch.'
     )
@@ -77,7 +77,7 @@ def get_attack_args():
     # =================================================================================
     parser.add_argument('--use_sgld', default=True, action='store_true', help='Use SGLD for envlight updates in the max phase instead of Adam.')
     parser.add_argument('--sgld_lr', type=float, default=1e-2, help='SGLD learning rate for envlight updates.')
-    parser.add_argument('--sgld_noise_std', type=float, default=1e-4, help='Std of Gaussian noise injected in SGLD updates.')
+    parser.add_argument('--sgld_noise_std', type=float, default=1, help='Std of Gaussian noise injected in SGLD updates.')
 
 
     # =================================================================================

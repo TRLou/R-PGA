@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import argparse
+import glob
 import re
 from pathlib import Path
 
@@ -68,12 +69,12 @@ IMG_SUFFIXES = {'.png', '.jpg', '.jpeg'}
 
 def parse_args():
 	parser = argparse.ArgumentParser(
-		description="评估单个 RGA_output/<timestamp> 目录下的 final_*_images_* 多天气结果，并输出 pitch/distance/weather/detector 四种对比汇总表（txt）"
+		description="评估 RGA_output/<timestamp> 目录下的多天气结果。支持使用通配符对多个目录进行批量评估。"
 	)
 	parser.add_argument(
 		'--exp_dir',
-		default='./RGA_output/1220_195202_Beijing',
-		help='运行输出目录（例如 RGA_output/1220_195003_Beijing），其下包含 final_full_images_Dark 等文件夹'
+		default='./RGA_output/1224_*',
+		help='单个运行输出目录，或使用通配符 (e.g., "RGA_output/1224_*") 的模式，用于批量处理。'
 	)
 	parser.add_argument(
 		'--anno_dir',
@@ -124,6 +125,18 @@ def _parse_pitch_distance(stem: str) -> tuple[int | None, int | None]:
 	pitch = _safe_int_from_regex(stem, r'(?i)pitch(\d+)')
 	distance = _safe_int_from_regex(stem, r'(?i)distance(\d+)')
 	return pitch, distance
+
+
+def _parse_pitch_angle_distance(stem: str) -> tuple[int | None, int | None, int | None]:
+	"""
+	Parse discrete physical metadata from image filename stem.
+	Expected patterns like: ori_pitch5_angle240_distance5_sunny
+	Angle aliases supported: angle / azimuth / azi
+	"""
+	pitch = _safe_int_from_regex(stem, r'(?i)pitch(-?\d+)')
+	angle = _safe_int_from_regex(stem, r'(?i)(?:angle|azimuth|azi)(-?\d+)')
+	distance = _safe_int_from_regex(stem, r'(?i)distance(-?\d+)')
+	return pitch, angle, distance
 
 
 def _init_one_detector(detector_name: str, device: str, mmdet_base: Path):
@@ -257,7 +270,7 @@ def _evaluate_weather_dir_collect(
 			if (max_iou >= 0.5).any():
 				is_attack_successful = False
 
-		pitch, distance = _parse_pitch_distance(img_path.stem)
+		pitch, angle, distance = _parse_pitch_angle_distance(img_path.stem)
 
 		local_records.append({
 			'method': method_name,
@@ -265,6 +278,7 @@ def _evaluate_weather_dir_collect(
 			'detector': detector_name,
 			'image_name': img_path.name,
 			'pitch': pitch,
+			'angle': angle,
 			'distance': distance,
 			'attack_successful': bool(is_attack_successful),
 		})
@@ -313,6 +327,7 @@ def _write_txt_report(
 ):
 	methods = sorted({r['method'] for r in records})
 	all_pitches = sorted({r['pitch'] for r in records if r.get('pitch') is not None})
+	all_angles = sorted({r['angle'] for r in records if r.get('angle') is not None})
 	all_distances = sorted({r['distance'] for r in records if r.get('distance') is not None})
 	all_weathers = sorted({r['weather'] for r in records})
 	all_detectors = sorted({r['detector'] for r in records})
@@ -332,7 +347,9 @@ def _write_txt_report(
 	lines: list[str] = []
 	lines.append("========== RPGA/RGA 多天气评估汇总（中文 txt）==========")
 	lines.append(f"总样本数（逐图统计）：{len(records)}")
-	lines.append(f"方法数量：{len(methods)}，天气数量：{len(all_weathers)}，距离种类：{len(all_distances)}，俯仰角种类：{len(all_pitches)}，检测器数量：{len(all_detectors)}")
+	lines.append(
+		f"方法数量：{len(methods)}，天气数量：{len(all_weathers)}，距离种类：{len(all_distances)}，俯仰角种类：{len(all_pitches)}，方位角种类：{len(all_angles)}，检测器数量：{len(all_detectors)}"
+	)
 	lines.append("")
 
 	# 0) overall
@@ -393,17 +410,27 @@ def _write_txt_report(
 			lines.append(f"变量检测器：{det}，{m}方法的平均ASR是{asr:.4f}，平均AP@0.5是{ap50:.4f}（成功{succ}/{n}）")
 		lines.append("")
 
+	# 5) angle
+	lines.append("========== 表 5：控制变量【方位角 angle】==========")
+	for m in methods:
+		lines.append(f"【方法：{m}】")
+		for a in all_angles:
+			idxs = [i for i in idxs_where(method=m) if records[i].get('angle') == a]
+			asr, ap50, n, succ = _compute_metrics_for_indices(idxs, records, preds_for_map, gts_for_map, target_class_idx)
+			if n == 0:
+				continue
+			lines.append(f"变量方位角：angle{a}，{m}方法的平均ASR是{asr:.4f}，平均AP@0.5是{ap50:.4f}（成功{succ}/{n}）")
+		lines.append("")
+
 	output_file.parent.mkdir(parents=True, exist_ok=True)
 	output_file.write_text("\n".join(lines), encoding='utf-8')
 	print(f"[INFO] 已写出中文汇总到：{output_file}")
 
 
-def main():
-	args = parse_args()
-
-	exp_dir = Path(args.exp_dir)
-	if not exp_dir.exists():
-		print(f"[ERROR] exp_dir 不存在：{exp_dir}")
+def run_evaluation_on_directory(exp_dir: Path, args: argparse.Namespace, is_batch_mode: bool):
+	"""对单个实验目录执行评估"""
+	if not exp_dir.is_dir():
+		print(f"[ERROR] exp_dir 不是一个有效目录：{exp_dir}")
 		return
 
 	# Resolve anno_dir
@@ -486,7 +513,11 @@ def main():
 		print("[ERROR] 没有获得任何可用结果（可能是标注匹配失败或目录为空）")
 		return
 
-	output_file = Path(args.output_file) if str(args.output_file).strip() else (exp_dir / 'evaluation_results_rpga.txt')
+	if is_batch_mode or not str(args.output_file).strip():
+		output_file = exp_dir / 'evaluation_results_rpga.txt'
+	else:
+		output_file = Path(args.output_file)
+		
 	_write_txt_report(
 		output_file=output_file,
 		records=all_records,
@@ -494,6 +525,32 @@ def main():
 		gts_for_map=all_gts_for_map,
 		target_class_idx=target_class_idx_global,
 	)
+
+
+def main():
+	args = parse_args()
+
+	exp_dir_pattern = str(args.exp_dir)
+	exp_dirs = [Path(p) for p in sorted(glob.glob(exp_dir_pattern)) if Path(p).is_dir()]
+
+	if not exp_dirs:
+		print(f"[ERROR] 未找到与模式 '{exp_dir_pattern}' 匹配的目录")
+		return
+
+	is_batch_mode = len(exp_dirs) > 1
+	if is_batch_mode:
+		print(f"[INFO] 发现 {len(exp_dirs)} 个匹配的实验目录，将进行批量处理...")
+		if str(args.output_file).strip():
+			print("[WARNING] 在批量处理模式下，--output_file 参数将被忽略。评估结果将保存在各自的实验目录中。")
+
+	for i, exp_dir in enumerate(exp_dirs):
+		if is_batch_mode:
+			print("\n" + "=" * 80)
+			print(f"[BATCH {i + 1}/{len(exp_dirs)}] 正在处理目录: {exp_dir.name}")
+			print("=" * 80)
+		
+		run_evaluation_on_directory(exp_dir, args, is_batch_mode)
+
 
 
 if __name__ == '__main__':

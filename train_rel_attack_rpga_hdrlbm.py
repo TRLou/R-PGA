@@ -974,11 +974,15 @@ def main():
 					'--output_file', str(eval_txt_path),
 				]
 				print(f"[消息] [最终评估] 正在生成汇总文件: {eval_txt_path.name}")
-				subprocess.run(cmd, check=False)
+				result = subprocess.run(cmd, capture_output=True, text=True)
 				if eval_txt_path.is_file():
 					print(f"[消息] [最终评估] 已生成: {eval_txt_path}")
 				else:
 					print("[警告] [最终评估] evaluate_img_rpga.py 未生成 evaluation_results_rpga.txt（请检查脚本输出日志）。")
+					if result.returncode != 0:
+						print(f"    [调试信息] evaluate_img_rpga.py 执行失败，返回码: {result.returncode}")
+						print(f"    --- STDOUT ---\n{result.stdout}")
+						print(f"    --- STDERR ---\n{result.stderr}")
 			else:
 				print(
 					f"[警告] [最终评估] 跳过生成 evaluation_results_rpga.txt："

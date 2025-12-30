@@ -23,10 +23,10 @@ evaluation_results_mw2,evaluation_results_mw2.txt,2,距离 distance,distance,dis
 evaluation_results_mw2,evaluation_results_mw2.txt,2,距离 distance,distance,distance10,raucae2e,0.8661,0.0965,6548,7560
 evaluation_results_mw2,evaluation_results_mw2.txt,2,距离 distance,distance,distance15,raucae2e,0.8927,0.1244,6561,7350
 evaluation_results_mw2,evaluation_results_mw2.txt,2,距离 distance,distance,distance20,raucae2e,0.9059,0.0752,6620,7308
-evaluation_results_rpga2,evaluation_results_rpga2.txt,2,距离 distance,distance,distance5,1220_195003_Beijing,0.9274,0.0584,6855,7392
-evaluation_results_rpga2,evaluation_results_rpga2.txt,2,距离 distance,distance,distance10,1220_195003_Beijing,0.9313,0.0366,6884,7392
-evaluation_results_rpga2,evaluation_results_rpga2.txt,2,距离 distance,distance,distance15,1220_195003_Beijing,0.9205,0.1184,6611,7182
-evaluation_results_rpga2,evaluation_results_rpga2.txt,2,距离 distance,distance,distance20,1220_195003_Beijing,0.9171,0.1181,6471,7056
+evaluation_results_rpga2,evaluation_results_rpga2.txt,2,距离 distance,distance,distance5,R-PGA,0.9274,0.0584,6855,7392
+evaluation_results_rpga2,evaluation_results_rpga2.txt,2,距离 distance,distance,distance10,R-PGA,0.9313,0.0366,6884,7392
+evaluation_results_rpga2,evaluation_results_rpga2.txt,2,距离 distance,distance,distance15,R-PGA,0.9205,0.1184,6611,7182
+evaluation_results_rpga2,evaluation_results_rpga2.txt,2,距离 distance,distance,distance20,R-PGA,0.9171,0.1181,6471,7056
 evaluation_results_mw3,evaluation_results_mw3.txt,2,距离 distance,distance,distance5,das,0.5146,0.5125,3890,7560
 evaluation_results_mw3,evaluation_results_mw3.txt,2,距离 distance,distance,distance10,das,0.3902,0.5991,2950,7560
 evaluation_results_mw3,evaluation_results_mw3.txt,2,距离 distance,distance,distance15,das,0.3797,0.5839,2791,7350
