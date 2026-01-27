@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import warnings
 import argparse
+import json
+import shutil
 from pathlib import Path
 from typing import List
+import time
+import csv
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -55,6 +59,65 @@ DETECTOR_PATHS = {
         'ckpt': 'checkpoints/detr_r50_8xb2-150e_coco.pth'
     }
 }
+
+def _lbm_cache_subdir(cache_dir: Path, camera_name: str) -> Path:
+    # camera_name is usually `cam.image_name` and should not contain path separators,
+    # but make it safe anyway.
+    safe = str(camera_name).replace("/", "__").replace("\\", "__")
+    return cache_dir / safe
+
+
+def _lbm_cache_rgb_ori_path(cache_dir: Path, camera_name: str, hdr_id: int) -> Path:
+    return _lbm_cache_subdir(cache_dir, camera_name) / f"rgb_ori_hdr_{int(hdr_id):04d}.pt"
+
+
+def _lbm_cache_relit_path(cache_dir: Path, camera_name: str, hdr_id: int) -> Path:
+    return _lbm_cache_subdir(cache_dir, camera_name) / f"hdr_{int(hdr_id):04d}.png"
+
+
+def lbm_disk_cache_load_relit(cache_dir: Path, camera_name: str, hdr_id: int) -> Image.Image | None:
+    p = _lbm_cache_relit_path(cache_dir, camera_name, int(hdr_id))
+    if not p.exists():
+        return None
+    try:
+        with Image.open(p) as im:
+            return im.convert("RGB")
+    except Exception:
+        return None
+
+
+def lbm_disk_cache_save_relit(cache_dir: Path, camera_name: str, hdr_id: int, relit_image_pil: Image.Image) -> None:
+    p = _lbm_cache_relit_path(cache_dir, camera_name, int(hdr_id))
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        relit_image_pil.save(p)
+    except Exception:
+        # Best-effort cache; never crash training due to cache I/O.
+        return
+
+
+def lbm_disk_cache_load_rgb_ori(cache_dir: Path, camera_name: str, hdr_id: int, device: torch.device) -> torch.Tensor | None:
+    p = _lbm_cache_rgb_ori_path(cache_dir, camera_name, int(hdr_id))
+    if not p.exists():
+        return None
+    try:
+        t = torch.load(p, map_location="cpu")
+        if not isinstance(t, torch.Tensor):
+            return None
+        # Ensure float32 in [0,1] and on correct device
+        return t.to(device=device, dtype=torch.float32)
+    except Exception:
+        return None
+
+
+def lbm_disk_cache_save_rgb_ori(cache_dir: Path, camera_name: str, hdr_id: int, rgb_ori: torch.Tensor) -> None:
+    p = _lbm_cache_rgb_ori_path(cache_dir, camera_name, int(hdr_id))
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(rgb_ori.detach().cpu().to(dtype=torch.float16), p)
+    except Exception:
+        # Best-effort cache; never crash training due to cache I/O.
+        return
 
 
 def save_image_rgb01(img: torch.Tensor, path: Path) -> None:
@@ -123,6 +186,62 @@ def save_visualization_grid(save_path: Path, images_dict: dict):
 		grid_img.save(save_path)
 
 
+def compute_phy_constraint_loss(
+	img_chw: torch.Tensor,
+	red_mask: torch.Tensor,
+	args: argparse.Namespace,
+) -> torch.Tensor:
+	"""
+	Regularize red_mask region on detector input:
+	- increase contrast (luma std)
+	- increase saturation
+	- add TV loss to encourage color blocks
+	"""
+	# Handle different mask formats: [H, W], [1, H, W], or [3, H, W]
+	if red_mask.dim() == 3:
+		if red_mask.shape[0] == 1:
+			mask = red_mask.squeeze(0)  # [1, H, W] -> [H, W]
+		elif red_mask.shape[0] == 3:
+			mask = red_mask[0]  # [3, H, W] -> [H, W] (use first channel)
+		else:
+			mask = red_mask.squeeze(0) if red_mask.shape[0] == 1 else red_mask[0]
+	elif red_mask.dim() == 2:
+		mask = red_mask  # Already [H, W]
+	else:
+		mask = red_mask
+	mask = mask.to(device=img_chw.device, dtype=img_chw.dtype).clamp(0.0, 1.0)
+	denom = mask.sum()
+	if not torch.isfinite(denom) or float(denom.item()) <= 1e-6:
+		return torch.zeros((), device=img_chw.device, dtype=img_chw.dtype)
+
+	img = img_chw.clamp(0.0, 1.0)
+	luma = 0.2989 * img[0] + 0.5870 * img[1] + 0.1140 * img[2]
+	mean_luma = (luma * mask).sum() / denom
+	var_luma = ((luma - mean_luma) ** 2 * mask).sum() / denom
+	contrast = torch.sqrt(var_luma + 1e-6)
+	# Negative term encourages higher contrast under minimization
+	contrast_loss = -contrast
+
+	max_rgb, _ = img.max(dim=0)
+	min_rgb, _ = img.min(dim=0)
+	saturation = (max_rgb - min_rgb) / (max_rgb + 1e-6)
+	sat_mean = (saturation * mask).sum() / denom
+	# Negative term encourages higher saturation under minimization
+	sat_loss = -sat_mean
+
+	mask_h = mask[:, 1:] * mask[:, :-1]
+	mask_w = mask[1:, :] * mask[:-1, :]
+	tv_h = torch.abs(img[:, :, 1:] - img[:, :, :-1]) * mask_h.unsqueeze(0)
+	tv_w = torch.abs(img[:, 1:, :] - img[:, :-1, :]) * mask_w.unsqueeze(0)
+	denom_tv = (mask_h.sum() + mask_w.sum()).clamp_min(1e-6) * img.shape[0]
+	tv_loss = (tv_h.sum() + tv_w.sum()) / denom_tv
+
+	w_contrast = float(getattr(args, "phy_contrast_weight", 0.1))
+	w_sat = float(getattr(args, "phy_saturation_weight", 0.1))
+	w_tv = float(getattr(args, "phy_tv_weight", 0.05))
+	return w_contrast * contrast_loss + w_sat * sat_loss + w_tv * tv_loss
+
+
 def compute_batch_loss(
 	cam_batch: List,
 	gaussians: GaussianModel,
@@ -138,16 +257,42 @@ def compute_batch_loss(
 	epoch: int,
 	batch_idx: int,
 	det_vis_dir: Path | None = None,
+	hdr_id: int | None = None,
+	relight_cache: dict | None = None,
 ):
 	"""
 	Renders a batch of cameras, performs detection, and computes the adversarial loss.
 	This function encapsulates the forward pass logic.
 	"""
+	# Optional profiling (very lightweight when disabled)
+	profile_enabled = bool(getattr(args, "profile", False))
+	profile_interval = int(getattr(args, "profile_interval", 50))
+	do_profile = profile_enabled and profile_interval > 0 and (int(batch_idx) % profile_interval == 0)
+	t_total0 = time.perf_counter() if do_profile else 0.0
+	# Accumulate seconds
+	tm = {
+		"anno_io": 0.0,
+		"render_adv": 0.0,
+		"mask_io": 0.0,
+		"mask_resize": 0.0,
+		"render_ori": 0.0,
+		"source_io": 0.0,
+		"relight": 0.0,
+		"compose": 0.0,
+		"stack": 0.0,
+		"detector": 0.0,
+		"loss_post": 0.0,
+		"total": 0.0,
+	}
+	n_in = int(len(cam_batch)) if cam_batch is not None else 0
+	n_used = 0
+
 	imgs_for_det = []
 	gt_bboxes_batch = []
 	view_names_batch = []
 	detect_imgs = []
 	vis_data_batch = []
+	phy_losses = []
 
 	for cam in cam_batch:
 		name = cam.image_name
@@ -155,11 +300,19 @@ def compute_batch_loss(
 		if not anno_path.exists():
 			continue
 
+		if do_profile:
+			t0 = time.perf_counter()
 		gt_bbox, _ = load_labelme_annotation(str(anno_path))
+		if do_profile:
+			tm["anno_io"] += time.perf_counter() - t0
 		
+		if do_profile:
+			t0 = time.perf_counter()
 		render_pkg = render(
 			cam, gaussians, pipe, bg, iteration=global_step, is_train=False, second_stage_step=int(args.second_stage_step), hdr_rotation=bool(args.hdr_rotation)
 		)
+		if do_profile:
+			tm["render_adv"] += time.perf_counter() - t0
 		rgb = render_pkg['render']  # (3,H,W) rgb是带有对抗纹理的白底
 		H, W = rgb.shape[-2], rgb.shape[-1]
 		red_mask_path = first_existing([
@@ -176,53 +329,90 @@ def compute_batch_loss(
 		])
 
 		if red_mask_path and full_mask_path:
+			if do_profile:
+				t0 = time.perf_counter()
 			red_mask_img = Image.open(red_mask_path).convert('L')
 			full_mask_img = Image.open(full_mask_path).convert('L')
+			if do_profile:
+				tm["mask_io"] += time.perf_counter() - t0
 			red_mask = torch.from_numpy(np.array(red_mask_img)).to(device=rgb.device, dtype=torch.float32) / 255.0
 			full_mask = torch.from_numpy(np.array(full_mask_img)).to(device=rgb.device, dtype=torch.float32) / 255.0
+			if do_profile:
+				t0 = time.perf_counter()
 			red_mask = F.interpolate(red_mask.unsqueeze(0).unsqueeze(0), size=(H, W), mode='nearest').squeeze(0)
 			full_mask = F.interpolate(full_mask.unsqueeze(0).unsqueeze(0), size=(H, W), mode='nearest').squeeze(0)
+			if do_profile:
+				tm["mask_resize"] += time.perf_counter() - t0
 			other_mask = torch.clamp(1 - red_mask, 0.0, 1.0)
 			red_mask3 = red_mask.repeat(3, 1, 1)
 			other_mask3 = other_mask.repeat(3, 1, 1)
 			full_mask3 = full_mask.repeat(3, 1, 1)
  
-			with torch.no_grad():
-				render_pkg_ori = render(
-					cam, gaussians_original, pipe, bg, iteration=global_step, is_train=False, second_stage_step=int(args.second_stage_step), hdr_rotation=bool(args.hdr_rotation)
-				)
-				rgb_ori = render_pkg_ori['render']  # rgb_ori是不带对抗纹理的白底
-			
-			# 先在白色背景上，用 red_mask 混合出完整的对抗车辆
-			full_adv_car = rgb_ori * (1 - red_mask3) + rgb * red_mask3
-
-			relit_image_pil = None
+			# --- Background source ---
+			# If LBM relighting is enabled, we run in DISK-ONLY mode for speed (expects precomputed cache).
+			# If LBM relighting is disabled (ablation), we do NOT require the disk cache; we fall back to:
+			#   - background = original source image from dataset
+			#   - rgb_ori = on-the-fly render of gaussians_original
 			source_image = None
-			source_image_path = first_existing([
-				Path(dataset.source_path) / 'ori' / f'{name}.jpg',
-				Path(dataset.source_path) / 'ori' / f'{name}.png'
-			])
-			if source_image_path:
-				source_image = Image.open(source_image_path).convert('RGB')
-				source_image = source_image.resize((W, H), Image.BILINEAR)
-				if relighter is not None and full_mask_path:
-					with torch.no_grad():
-						source_image_tensor = torch.from_numpy(np.array(source_image)).permute(2, 0, 1).to(device=rgb.device, dtype=torch.float32) / 255.0
-						composite_image_tensor = source_image_tensor * (1 - full_mask3) + rgb_ori * full_mask3
-						fg_relight_image = Image.fromarray((composite_image_tensor.permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8))
+			relit_image_pil = None
+			if bool(getattr(args, "enable_lbm_relight", True)):
+				disk_cache_dir = getattr(args, "lbm_disk_cache_dir", "")
+				if not disk_cache_dir:
+					raise ValueError("[Error] --lbm_disk_cache_dir must be set for disk-only relighting mode.")
+				disk_cache_path = Path(disk_cache_dir)
 
-						bg_mask = Image.open(full_mask_path)
-						
-						# Extract SH coeffs from gaussians object if they exist for HDR relighting
-						hdr_sh_coeffs = getattr(gaussians, 'hdr_sh_coeffs', None)
-
-						relit_image_pil = relighter.relight_hdr(
-							source_image=source_image, fg_relight_image=fg_relight_image, bg_mask=bg_mask,
-							width=W, height=H, invert_mask=True, hdr_sh_coeffs=hdr_sh_coeffs
-						)
+				if hdr_id is None:
+					# Should not happen in HPCM mode typically
+					pass
+				elif bool(getattr(args, "hdr_rotation", False)):
+					raise ValueError("[Error] Disk-only cache is incompatible with --hdr_rotation (backgrounds are non-deterministic).")
 				else:
+					# 1) Load relit background from disk
+					relit_image_pil = lbm_disk_cache_load_relit(disk_cache_path, name, int(hdr_id))
+					if relit_image_pil is None:
+						raise FileNotFoundError(
+							f"[Error] Missing relit background in disk cache for camera='{name}', hdr_id={hdr_id}. "
+							"Run precompute first."
+						)
+					# 2) Load rgb_ori from disk (used to build full_adv_car)
+					rgb_ori = lbm_disk_cache_load_rgb_ori(disk_cache_path, name, int(hdr_id), rgb.device)
+					if rgb_ori is None:
+						raise FileNotFoundError(
+							f"[Error] Missing rgb_ori in disk cache for camera='{name}', hdr_id={hdr_id}. "
+							"Run precompute first."
+						)
+			else:
+				# Ablation: no LBM relighting; background is the dataset's original image, and rgb_ori is rendered now.
+				if do_profile:
+					t0 = time.perf_counter()
+				source_image_path = first_existing([
+					Path(dataset.source_path) / 'ori' / f'{name}.jpg',
+					Path(dataset.source_path) / 'ori' / f'{name}.png',
+				])
+				if source_image_path:
+					source_image = Image.open(source_image_path).convert('RGB').resize((W, H), Image.BILINEAR)
 					relit_image_pil = source_image
-			
+				if do_profile:
+					tm["source_io"] += time.perf_counter() - t0
+
+				if do_profile:
+					t0 = time.perf_counter()
+				render_pkg_ori = render(
+					cam, gaussians_original, pipe, bg, iteration=global_step, is_train=False,
+					second_stage_step=int(args.second_stage_step), hdr_rotation=bool(args.hdr_rotation)
+				)
+				rgb_ori = render_pkg_ori['render']
+				if do_profile:
+					tm["render_ori"] += time.perf_counter() - t0
+
+			# 先在白色背景上，用 red_mask 混合出完整的对抗车辆
+			if do_profile:
+				t0 = time.perf_counter()
+			# Note: if red_mask covers the whole car, full_adv_car is just 'rgb'
+			full_adv_car = rgb_ori * (1 - red_mask3) + rgb * red_mask3
+			if do_profile:
+				tm["compose"] += time.perf_counter() - t0
+
 			if relit_image_pil is not None:
 				# 使用 full_mask (车辆的精确轮廓) 将对抗车辆合成到重打光的背景上
 				relit_image_tensor = torch.from_numpy(np.array(relit_image_pil)).permute(2,0,1).to(device=rgb.device, dtype=torch.float32) / 255.0
@@ -233,7 +423,12 @@ def compute_batch_loss(
 				detect_img_chw = rgb_ori * (1 - full_mask3) + full_adv_car * full_mask3
 		else:
 			detect_img_chw = rgb
-		
+
+		phy_loss = torch.zeros((), device=detect_img_chw.device, dtype=detect_img_chw.dtype)
+		if bool(getattr(args, "phy_constraint_loss", False)) and red_mask_path and full_mask_path:
+			phy_loss = compute_phy_constraint_loss(detect_img_chw, red_mask3, args)
+		phy_losses.append(phy_loss)
+
 		# Collect visualization data for this item
 		vis_item = {
 			'rgb': rgb.detach().clone(),
@@ -250,11 +445,16 @@ def compute_batch_loss(
 		gt_bboxes_batch.append(torch.from_numpy(gt_bbox).to(rgb.device))
 		view_names_batch.append(name)
 		detect_imgs.append(detect_img_chw)
+		n_used += 1
 
 	if not imgs_for_det:
 		return None, None, None, None, None, None
 	
+	if do_profile:
+		t0 = time.perf_counter()
 	imgs_for_det_batch = torch.stack(imgs_for_det, dim=0)
+	if do_profile:
+		tm["stack"] += time.perf_counter() - t0
 	
 	if bool(getattr(args, 'save_temp_imgs_for_det', False)):
 		try:
@@ -274,6 +474,8 @@ def compute_batch_loss(
 		except Exception:
 			pass
 
+	if do_profile:
+		t0 = time.perf_counter()
 	preds = inference_detector_custom(
 		detector,
 		imgs_for_det_batch,
@@ -281,11 +483,15 @@ def compute_batch_loss(
 		vis_dir=det_vis_dir,
 		view_names=view_names_batch if det_vis_dir is not None else None,
 	)
+	if do_profile:
+		tm["detector"] += time.perf_counter() - t0
 
 	batch_total_loss = torch.tensor(0.0, device=imgs_for_det_batch.device)
 	batch_cls_loss = torch.tensor(0.0, device=imgs_for_det_batch.device)
 	batch_reg_loss = torch.tensor(0.0, device=imgs_for_det_batch.device)
 	per_sample_total_losses: list[torch.Tensor] = []
+	if do_profile:
+		t0 = time.perf_counter()
 	for i, pred in enumerate(preds):
 		pred_instances = pred.pred_instances
 		score_mask = pred_instances.scores >= 0.5
@@ -304,12 +510,61 @@ def compute_batch_loss(
 		)
 		if not loss.requires_grad:
 			loss = loss + (imgs_for_det_batch.float().sum() * 0.0)
+		if i < len(phy_losses):
+			loss = loss + phy_losses[i]
 		per_sample_total_losses.append(loss)
 		batch_total_loss += loss
 		batch_cls_loss += cls_loss
 		batch_reg_loss += reg_loss
+	if do_profile:
+		tm["loss_post"] += time.perf_counter() - t0
 	
 	per_sample_total_losses_t = torch.stack(per_sample_total_losses, dim=0) if per_sample_total_losses else None
+	if do_profile:
+		tm["total"] = time.perf_counter() - t_total0
+		# Write one row (append) for offline analysis.
+		# Keep it simple to minimize overhead.
+		out_path = Path(save_dir) / "profile_batchloss.csv"
+		row = {
+			"epoch": int(epoch),
+			"batch_idx": int(batch_idx),
+			"n_in": int(n_in),
+			"n_used": int(n_used),
+			"total_s": float(tm["total"]),
+			"render_adv_s": float(tm["render_adv"]),
+			"render_ori_s": float(tm["render_ori"]),
+			"detector_s": float(tm["detector"]),
+			"relight_s": float(tm["relight"]),
+			"anno_io_s": float(tm["anno_io"]),
+			"mask_io_s": float(tm["mask_io"]),
+			"mask_resize_s": float(tm["mask_resize"]),
+			"source_io_s": float(tm["source_io"]),
+			"compose_s": float(tm["compose"]),
+			"stack_s": float(tm["stack"]),
+			"loss_post_s": float(tm["loss_post"]),
+		}
+		write_header = not out_path.exists()
+		try:
+			with out_path.open("a", encoding="utf-8", newline="") as f:
+				w = csv.DictWriter(f, fieldnames=list(row.keys()))
+				if write_header:
+					w.writeheader()
+				w.writerow(row)
+		except Exception as e:
+			print(f"[警告] [PROFILE] 写 profile_batchloss.csv 失败: {e}")
+		# Print a compact summary (top contributors)
+		try:
+			top = [
+				("detector", tm["detector"]),
+				("render_adv", tm["render_adv"]),
+				("render_ori", tm["render_ori"]),
+				("relight", tm["relight"]),
+				("io(anno+mask+src)", tm["anno_io"] + tm["mask_io"] + tm["source_io"]),
+			]
+			top_s = ", ".join([f"{k}={v*1000.0:.1f}ms" for k, v in top])
+			print(f"[PROFILE] compute_batch_loss epoch={int(epoch)} batch={int(batch_idx)} n_used={n_used}/{n_in} total={tm['total']*1000.0:.1f}ms | {top_s}")
+		except Exception:
+			pass
 	return batch_total_loss, batch_cls_loss, batch_reg_loss, detect_imgs, vis_data_batch, per_sample_total_losses_t
 
 @torch.no_grad()
@@ -957,6 +1212,79 @@ def render_and_save_final_images_mw(cameras, gaussians, pipe, bg, args, dataset,
 
 
 @torch.no_grad()
+def render_and_save_final_images_ori(cameras, gaussians, pipe, bg, args, dataset, gaussians_original, relighter, save_dir: Path, set_name: str):
+	"""
+	使用 ori 目录中的原始背景进行最终图像渲染与保存（不拼接多天气背景）。
+	适用于缺少 ori_mw2 数据的情况。
+	
+	规则：
+	- 背景来源：dataset.source_path / 'ori' / '<name>.png' 或 '<name>.jpg'
+	- 输出：创建一个输出目录 final_{set_name}_images_ori
+	返回：
+	- 一个字典 { 'ori': output_dir_path }
+	"""
+	ori_dir = Path(dataset.source_path) / 'ori'
+	if not ori_dir.is_dir():
+		print(f"[消息] [ORI] 未找到 ori 目录: {ori_dir}，跳过渲染。")
+		return {}
+	
+	output_dir = save_dir / f"final_{set_name}_images_ori"
+	output_dir.mkdir(parents=True, exist_ok=True)
+	print(f"\n[消息] [ORI] 开始渲染并保存 '{set_name}' 集的图像（使用 ori 背景）到: {output_dir}")
+	
+	for cam in tqdm(cameras, desc=f"渲染 {set_name} 集(ori背景)", ncols=120):
+		name = cam.image_name
+		anno_path = Path(dataset.source_path) / 'annos' / f'{name}.json'
+		if not anno_path.exists():
+			continue
+		
+		render_pkg = render(
+			cam, gaussians, pipe, bg, iteration=60000, is_train=False,
+			second_stage_step=int(args.second_stage_step), hdr_rotation=bool(args.hdr_rotation)
+		)
+		rgb = render_pkg['render']
+		H, W = rgb.shape[-2], rgb.shape[-1]
+		
+		red_mask_path = first_existing([Path(dataset.source_path) / 'red_masks' / f'{name}_mask.png', Path(dataset.source_path) / 'red_masks' / f'{name}_mask.jpg'])
+		full_mask_path = first_existing([Path(dataset.source_path) / 'masks' / f'{name}_mask.png', Path(dataset.source_path) / 'masks' / f'{name}_mask.jpg'])
+		
+		detect_img_chw = rgb  # default
+		if red_mask_path and full_mask_path:
+			red_mask = torch.from_numpy(np.array(Image.open(red_mask_path).convert('L'))).to(device=rgb.device, dtype=torch.float32) / 255.0
+			full_mask = torch.from_numpy(np.array(Image.open(full_mask_path).convert('L'))).to(device=rgb.device, dtype=torch.float32) / 255.0
+			red_mask = F.interpolate(red_mask.unsqueeze(0).unsqueeze(0), size=(H, W), mode='nearest').squeeze(0)
+			full_mask = F.interpolate(full_mask.unsqueeze(0).unsqueeze(0), size=(H, W), mode='nearest').squeeze(0)
+			red_mask3 = red_mask.repeat(3, 1, 1)
+			full_mask3 = full_mask.repeat(3, 1, 1)
+			
+			render_pkg_ori = render(cam, gaussians_original, pipe, bg, iteration=60000, is_train=False)
+			rgb_ori = render_pkg_ori['render']
+			full_adv_car = rgb_ori * (1 - red_mask3) + rgb * red_mask3
+			
+			# 取 ori 目录中的原始背景
+			ori_bg_path = first_existing([
+				ori_dir / f'{name}.png',
+				ori_dir / f'{name}.jpg',
+				ori_dir / f'{name}.jpeg',
+			])
+			if ori_bg_path and Path(ori_bg_path).is_file():
+				try:
+					ori_bg = Image.open(ori_bg_path).convert('RGB').resize((W, H), Image.BILINEAR)
+					ori_bg_tensor = torch.from_numpy(np.array(ori_bg)).permute(2, 0, 1).to(device=rgb.device, dtype=torch.float32) / 255.0
+					detect_img_chw = ori_bg_tensor * (1 - full_mask3) + full_adv_car * full_mask3
+				except Exception as e:
+					print(f"[警告] [ORI] 加载/处理背景失败: {ori_bg_path.name}: {e}")
+					detect_img_chw = full_adv_car  # 退化为白底合成
+			else:
+				# 未找到对应原始背景，退化为白底合成
+				detect_img_chw = full_adv_car
+		
+		save_image_rgb01(detect_img_chw, output_dir / f"{name}.png")
+	
+	return {'ori': output_dir}
+
+
+@torch.no_grad()
 def visualize_hdr_bank_from_dir(cameras: List, gaussians, pipe, bg: torch.Tensor, args: argparse.Namespace, dataset: ModelParams, hdr_bank_dir: Path, save_root: Path, num_views: int = 5, seed: int = 0):
 	"""
 	从目录遍历 HDR/EXR 文件，随机抽取 num_views 个视角，对每个 HDR 进行渲染可视化并保存。
@@ -1012,6 +1340,170 @@ def visualize_hdr_bank_from_dir(cameras: List, gaussians, pipe, bg: torch.Tensor
 				print(f"[警告] [HDR-VIS] 渲染失败: {hdr_path.stem}/{cam.image_name}: {e}")
 
 	return save_root
+
+
+@torch.no_grad()
+def precompute_lbm_disk_cache(
+	cameras,
+	gaussians_original,
+	pipe,
+	bg,
+	dataset,
+	relighter: LBMRelighter | None,
+	hdr_bases_cpu: list[torch.Tensor],
+	hdr_sh_cpu: list[torch.Tensor] | None,
+	args: argparse.Namespace,
+	global_step: int,
+	cache_dir: Path,
+	force_rebuild: bool = False,
+):
+	"""
+	Precompute and store LBM relit backgrounds to disk for all (camera, hdr_id) pairs.
+
+	Cache layout:
+	  {cache_dir}/{camera_name}/
+	    - rgb_ori_hdr_XXXX.pt   (torch float16 CHW in [0,1])
+	    - hdr_XXXX.png          (PIL RGB)
+
+	Notes:
+	- Only safe when `--hdr_rotation` is disabled (deterministic).
+	- Best-effort: individual failures are logged and skipped.
+	"""
+	if relighter is None:
+		print("[消息] [LBM-DiskCache] relighter=None，跳过预渲染。")
+		return
+	if bool(getattr(args, "hdr_rotation", False)):
+		print("[警告] [LBM-DiskCache] --hdr_rotation 已启用，背景非确定性；跳过磁盘预渲染。")
+		return
+	if not isinstance(cache_dir, Path):
+		cache_dir = Path(str(cache_dir))
+
+	if force_rebuild and cache_dir.exists():
+		try:
+			shutil.rmtree(cache_dir)
+		except Exception as e:
+			print(f"[警告] [LBM-DiskCache] 清理旧缓存失败: {e}")
+
+	cache_dir.mkdir(parents=True, exist_ok=True)
+	device = bg.device if hasattr(bg, "device") else torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+	manifest = {
+		"version": 1,
+		"created_at": time.time(),
+		"hdr_count": int(len(hdr_bases_cpu)),
+		"camera_count": int(len(cameras)),
+		"global_step": int(global_step),
+		"second_stage_step": int(getattr(args, "second_stage_step", 30000)),
+		"complete": False,
+	}
+	try:
+		(cache_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+	except Exception:
+		pass
+
+	print(f"[消息] [LBM-DiskCache] 开始预渲染背景到: {cache_dir} (cams={len(cameras)}, hdrs={len(hdr_bases_cpu)})")
+	n_saved = 0
+	n_skipped = 0
+	n_failed = 0
+
+	for cam in tqdm(cameras, desc="LBM-DiskCache (cams)", ncols=120):
+		name = cam.image_name
+
+		# Required inputs
+		red_mask_path = first_existing([
+			Path(dataset.source_path) / "red_masks" / f"{name}_mask.png",
+			Path(dataset.source_path) / "red_masks" / f"{name}_mask.jpg",
+			Path(dataset.source_path) / "red_masks" / f"{name}_mask.jpeg",
+			Path(dataset.source_path) / "red_masks" / f"{name}_mask.bmp",
+		])
+		full_mask_path = first_existing([
+			Path(dataset.source_path) / "masks" / f"{name}_mask.png",
+			Path(dataset.source_path) / "masks" / f"{name}_mask.jpg",
+			Path(dataset.source_path) / "masks" / f"{name}_mask.jpeg",
+			Path(dataset.source_path) / "masks" / f"{name}_mask.bmp",
+		])
+		source_image_path = first_existing([
+			Path(dataset.source_path) / "ori" / f"{name}.jpg",
+			Path(dataset.source_path) / "ori" / f"{name}.png",
+		])
+
+		# Keep consistent with training path: only precompute when masks exist.
+		if not (red_mask_path and full_mask_path and source_image_path):
+			n_skipped += 1
+			continue
+
+		try:
+			bg_mask_pil = Image.open(full_mask_path).convert("L")
+			source_image = Image.open(source_image_path).convert("RGB")
+		except Exception:
+			n_failed += 1
+			continue
+
+		for hdr_id in range(len(hdr_bases_cpu)):
+			out_png = _lbm_cache_relit_path(cache_dir, name, int(hdr_id))
+			out_pt = _lbm_cache_rgb_ori_path(cache_dir, name, int(hdr_id))
+			if out_png.exists() and out_pt.exists():
+				n_skipped += 1
+				continue
+
+			try:
+				# Switch env base for deterministic rgb_ori rendering under this HDR
+				gaussians_original.envlight.base = hdr_bases_cpu[hdr_id].to(device=device, dtype=torch.float32)
+				try:
+					gaussians_original.envlight.build_mips()
+				except Exception:
+					pass
+
+				render_pkg_ori = render(
+					cam, gaussians_original, pipe, bg,
+					iteration=int(global_step),
+					is_train=False,
+					second_stage_step=int(getattr(args, "second_stage_step", 30000)),
+					hdr_rotation=False,
+				)
+				rgb_ori = render_pkg_ori["render"]  # (3,H,W), float in [0,1]
+				H, W = rgb_ori.shape[-2], rgb_ori.shape[-1]
+
+				# Resize source/mask to match render size
+				source_resized = source_image.resize((W, H), Image.BILINEAR)
+				mask_resized = bg_mask_pil.resize((W, H), Image.NEAREST)
+				full_mask = torch.from_numpy(np.array(mask_resized)).to(device=device, dtype=torch.float32) / 255.0
+				full_mask3 = full_mask.unsqueeze(0).repeat(3, 1, 1)
+
+				source_tensor = torch.from_numpy(np.array(source_resized)).permute(2, 0, 1).to(device=device, dtype=torch.float32) / 255.0
+				composite_tensor = source_tensor * (1 - full_mask3) + rgb_ori * full_mask3
+				fg_relight_image = Image.fromarray((composite_tensor.permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8))
+
+				if hdr_sh_cpu is not None and hdr_id < len(hdr_sh_cpu):
+					hdr_sh_coeffs = hdr_sh_cpu[hdr_id].to(device=device, dtype=torch.float32)
+				else:
+					hdr_sh_coeffs = None
+
+				relit = relighter.relight_hdr(
+					source_image=source_resized,
+					fg_relight_image=fg_relight_image,
+					bg_mask=mask_resized,
+					width=W,
+					height=H,
+					invert_mask=True,
+					hdr_sh_coeffs=hdr_sh_coeffs,
+				)
+				lbm_disk_cache_save_relit(cache_dir, name, int(hdr_id), relit)
+				lbm_disk_cache_save_rgb_ori(cache_dir, name, int(hdr_id), rgb_ori)
+				n_saved += 1
+			except Exception:
+				n_failed += 1
+				continue
+
+	manifest["complete"] = True
+	manifest["saved_pairs"] = int(n_saved)
+	manifest["skipped"] = int(n_skipped)
+	manifest["failed"] = int(n_failed)
+	try:
+		(cache_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+	except Exception:
+		pass
+	print(f"[消息] [LBM-DiskCache] 预渲染完成：saved={n_saved}, skipped={n_skipped}, failed={n_failed}")
 
 
 @torch.no_grad()

@@ -56,6 +56,12 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="可选：覆盖单文件模式下的 run 名称（默认用 input_txt 的 stem）。多文件模式下会忽略。",
     )
+    p.add_argument(
+        "--exclude_methods",
+        nargs="*",
+        default=[],
+        help="要排除的方法名列表（不区分大小写）。例如：--exclude_methods DAS FCA",
+    )
     return p.parse_args()
 
 
@@ -74,12 +80,16 @@ def _infer_variable_type(table_title: str) -> str:
     return table_title.strip()
 
 
-def parse_txt(txt_path: Path, *, run: str) -> list[dict]:
+def parse_txt(txt_path: Path, *, run: str, exclude_methods: list[str] = None, method_override: str | None = None) -> list[dict]:
     rows: list[dict] = []
     cur_table_id: str | None = None
     cur_table_title: str | None = None
     cur_var_type: str | None = None
     cur_method: str | None = None
+    
+    if exclude_methods is None:
+        exclude_methods = []
+    exclude_methods_lower = [m.lower() for m in exclude_methods]
 
     for raw in txt_path.read_text(encoding="utf-8", errors="ignore").splitlines():
         line = raw.strip()
@@ -97,9 +107,22 @@ def parse_txt(txt_path: Path, *, run: str) -> list[dict]:
         m = METHOD_RE.match(line)
         if m:
             cur_method = m.group(1)
+            # Method name override (e.g., from file path)
+            if method_override:
+                cur_method = method_override
+            # Automatic rename for timestamp-like methods to R-PGA (only if no override)
+            elif re.match(r"^\d{4}_\d{6}_", cur_method):
+                cur_method = "R-PGA"
+            # Check if method should be excluded
+            if cur_method.lower() in exclude_methods_lower:
+                cur_method = None  # Skip this method's data
             continue
 
         if cur_table_id is None or cur_var_type is None or cur_method is None:
+            continue
+        
+        # Skip if method is excluded
+        if cur_method.lower() in exclude_methods_lower:
             continue
 
         # 按表类型选择对应解析器
@@ -239,12 +262,23 @@ def main() -> None:
 
     rows: list[dict] = []
     multi_mode = len(input_paths) > 1
+    exclude_methods = [m.strip() for m in args.exclude_methods] if args.exclude_methods else []
     for p in input_paths:
         if (not multi_mode) and str(args.run_name).strip():
             run = str(args.run_name).strip()
         else:
             run = p.stem
-        rows.extend(parse_txt(p, run=run))
+        
+        # Determine method override based on file path
+        method_override = None
+        p_str = str(p)
+        if "/PGA/" in p_str and "/paper_exp/" not in p_str:
+            method_override = "PGA"
+        elif "/paper_exp/" in p_str:
+            # Keep R-PGA naming for paper_exp (handled by timestamp regex)
+            method_override = None
+        
+        rows.extend(parse_txt(p, run=run, exclude_methods=exclude_methods, method_override=method_override))
 
     if not rows:
         raise RuntimeError("未解析到任何数据行：请确认输入 txt 格式与脚本匹配。")

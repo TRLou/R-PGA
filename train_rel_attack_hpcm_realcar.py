@@ -24,8 +24,8 @@ from utils.main_utils import coco_classes
 from mmdet.apis import init_detector
 from lbm_relit import LBMRelighter
 from utils.log_utils import TrainingLogger
-from attack_options_hpcm import get_attack_args
-# from attack_options_pga import get_attack_args
+# from attack_options_hpcm import get_attack_args
+from attack_options_hpcm_realcar import get_attack_args
 
 from submodules.envlight.envlight.light import EnvLight as EnvLightClass
 
@@ -36,6 +36,7 @@ from train_func_hdr import (
     precompute_lbm_disk_cache,
     evaluate,
     render_and_save_final_images_mw,
+    render_and_save_final_images_ori,
     evaluate_from_saved_images,
     visualize_hdr_bank_from_dir,
     visualize_hdr_bases_with_random_views,
@@ -354,6 +355,8 @@ def export_hpcm_monitor(
 		sid, hid = hpcm.decode(int(config_id))
 		p, a, d = hpcm.state_bins[sid]
 		hname = hpcm.hdr_names[hid] if 0 <= hid < len(hpcm.hdr_names) else str(hid)
+		# In camera-based mode, p is camera_idx, a and d are dummy (0)
+		# In physical mode, p/a/d are pitch/angle/distance
 		return int(p), int(a), int(d), int(hid), str(hname)
 
 	# Write summary txt
@@ -840,22 +843,37 @@ def main():
 	anno_dir = Path(dataset.source_path) / "annos"
 	train_cameras_anno = [c for c in train_cameras_all if (anno_dir / f"{c.image_name}.json").exists()]
 
-	# HPCM: ONLY keep name-parsable cameras
+	# HPCM: Try to parse physical parameters, but fallback to camera-based configs if parsing fails
 	parsed_train = []
+	use_physical_states = False
 	for cam in train_cameras_anno:
 		if _parse_physical_from_name(cam.image_name) is not None:
 			parsed_train.append(cam)
-	train_cameras = parsed_train
-
-	print(
-		f"[消息] 划分完成. 训练集(全集，有标注且可解析pitch/angle/distance): {len(train_cameras)} 张, "
-		f"测试子集: {len(test_cameras)} 张"
-	)
-	if len(train_cameras) == 0:
-		raise RuntimeError(
-			"HPCM requires camera.image_name to contain pitch/angle/distance (e.g. '...pitch20_angle80_distance5...'), "
-			f"but none were parsable. anno_dir={anno_dir}"
+			use_physical_states = True
+	
+	# If we can parse at least one camera, use physical state mode; otherwise use camera-based mode
+	if use_physical_states:
+		train_cameras = parsed_train
+		print(
+			f"[消息] 划分完成. 训练集(全集，有标注且可解析pitch/angle/distance): {len(train_cameras)} 张, "
+			f"测试子集: {len(test_cameras)} 张"
 		)
+		if len(train_cameras) == 0:
+			raise RuntimeError(
+				"HPCM requires camera.image_name to contain pitch/angle/distance (e.g. '...pitch20_angle80_distance5...'), "
+				f"but none were parsable. anno_dir={anno_dir}"
+			)
+	else:
+		# Fallback: use all cameras with annotations, treat each camera as a separate state
+		train_cameras = train_cameras_anno
+		print(
+			f"[消息] 划分完成. 训练集(全集，有标注，无法解析pitch/angle/distance，使用camera-based模式): {len(train_cameras)} 张, "
+			f"测试子集: {len(test_cameras)} 张"
+		)
+		if len(train_cameras) == 0:
+			raise RuntimeError(
+				f"No cameras with annotations found. anno_dir={anno_dir}"
+			)
 
 	# --- Load discrete HDR bases (EnvMap bank) ---
 	hdr_bases_cpu: list[torch.Tensor] = []
@@ -984,7 +1002,7 @@ def main():
 	# --- Option C: Initialize Relight Cache ---
 	relight_cache = {} if bool(getattr(args, "hpcm_enable_relight_cache", True)) else None
 
-	# --- Build discrete physical state bins from cameras (name parsing ONLY) ---
+	# --- Build discrete state bins from cameras ---
 	# --- (Optional) Precompute LBM backgrounds to disk cache for cross-run reuse ---
 	lbm_disk_cache_dir = getattr(args, "lbm_disk_cache_dir", "")
 	if (
@@ -1010,41 +1028,60 @@ def main():
 		except Exception as e:
 			print(f"[警告] [LBM-DiskCache] 预渲染失败: {e}。将继续正常训练并在训练中懒加载/懒写入缓存。")
 
-	parsed_triplets: list[tuple[int, int, int]] = []
-	for cam in train_cameras:
-		t = _parse_physical_from_name(cam.image_name)
-		# should never be None due to filtering above, but keep it strict
-		if t is None:
-			raise RuntimeError(f"HPCM name parsing failed unexpectedly for camera: {cam.image_name}")
-		parsed_triplets.append(t)
+	# Build state space based on whether we can parse physical parameters
+	if use_physical_states:
+		# Mode 1: Physical state space (pitch x angle x distance)
+		parsed_triplets: list[tuple[int, int, int]] = []
+		for cam in train_cameras:
+			t = _parse_physical_from_name(cam.image_name)
+			# should never be None due to filtering above, but keep it strict
+			if t is None:
+				raise RuntimeError(f"HPCM name parsing failed unexpectedly for camera: {cam.image_name}")
+			parsed_triplets.append(t)
 
-	# Unique discrete values from dataset
-	pitch_vals = sorted({t[0] for t in parsed_triplets})
-	angle_vals = sorted({t[1] for t in parsed_triplets})
-	dist_vals = sorted({t[2] for t in parsed_triplets})
+		# Unique discrete values from dataset
+		pitch_vals = sorted({t[0] for t in parsed_triplets})
+		angle_vals = sorted({t[1] for t in parsed_triplets})
+		dist_vals = sorted({t[2] for t in parsed_triplets})
 
-	# Metadata edges for saving (not used for sampling/bucketing)
-	pitch_edges = _edges_from_discrete_values(pitch_vals)
-	az_edges = _edges_from_discrete_values(angle_vals)
-	dist_edges = _edges_from_discrete_values(dist_vals)
+		# Metadata edges for saving (not used for sampling/bucketing)
+		pitch_edges = _edges_from_discrete_values(pitch_vals)
+		az_edges = _edges_from_discrete_values(angle_vals)
+		dist_edges = _edges_from_discrete_values(dist_vals)
 
-	# Camera lookup: (pitch,angle,distance) -> list of camera indices
-	cam_map: dict[tuple[int, int, int], list[int]] = {}
-	for i, t in enumerate(parsed_triplets):
-		key = (int(t[0]), int(t[1]), int(t[2]))
-		cam_map.setdefault(key, []).append(i)
+		# Camera lookup: (pitch,angle,distance) -> list of camera indices
+		cam_map: dict[tuple[int, int, int], list[int]] = {}
+		for i, t in enumerate(parsed_triplets):
+			key = (int(t[0]), int(t[1]), int(t[2]))
+			cam_map.setdefault(key, []).append(i)
 
-	# HPCM global state space = pitch x angle x distance (cartesian product)
-	state_bins: list[tuple[int, int, int]] = [
-		(int(p), int(a), int(d))
-		for p in pitch_vals
-		for a in angle_vals
-		for d in dist_vals
-	]
-	cams_by_state: list[list[int]] = [cam_map.get(st, []) for st in state_bins]
-	state_id_by_triplet: dict[tuple[int, int, int], int] = {st: i for i, st in enumerate(state_bins)}
-
-	print(f"[消息] [HPCM] 状态数(来自相机离散化): {len(state_bins)}；EnvMap 数: {len(hdr_bases_cpu)}")
+		# HPCM global state space = pitch x angle x distance (cartesian product)
+		state_bins: list[tuple[int, int, int]] = [
+			(int(p), int(a), int(d))
+			for p in pitch_vals
+			for a in angle_vals
+			for d in dist_vals
+		]
+		cams_by_state: list[list[int]] = [cam_map.get(st, []) for st in state_bins]
+		state_id_by_triplet: dict[tuple[int, int, int], int] = {st: i for i, st in enumerate(state_bins)}
+		
+		print(f"[消息] [HPCM] 物理状态模式: 状态数(来自相机离散化): {len(state_bins)}；EnvMap 数: {len(hdr_bases_cpu)}")
+	else:
+		# Mode 2: Camera-based state space (each camera is a state)
+		state_bins: list[tuple[int, int, int]] = [(i, 0, 0) for i in range(len(train_cameras))]  # Dummy values for compatibility
+		cams_by_state: list[list[int]] = [[i] for i in range(len(train_cameras))]  # Each state has exactly one camera
+		state_id_by_triplet: dict[tuple[int, int, int], int] = {}  # Not used in camera-based mode
+		parsed_triplets: list[tuple[int, int, int]] = []  # Not used in camera-based mode
+		
+		# Dummy edges for saving (not meaningful in camera-based mode)
+		pitch_vals = [0]
+		angle_vals = [0]
+		dist_vals = [0]
+		pitch_edges = _edges_from_discrete_values(pitch_vals)
+		az_edges = _edges_from_discrete_values(angle_vals)
+		dist_edges = _edges_from_discrete_values(dist_vals)
+		
+		print(f"[消息] [HPCM] 相机模式: 状态数(每个相机一个状态): {len(state_bins)}；EnvMap 数: {len(hdr_bases_cpu)}")
 	hpcm = HPCMTable(
 		state_bins=state_bins,
 		hdr_names=hdr_names,
@@ -1123,10 +1160,14 @@ def main():
 			if sampling_mode == "sequential":
 				seq_k = (int(step) * int(batch_size) + int(bi)) % max(1, len(train_cameras))
 				cam_idx = int(seq_k)
-				triplet = parsed_triplets[cam_idx]
-				state_id = int(state_id_by_triplet.get(tuple(triplet), -1))
-				if state_id < 0:
-					raise RuntimeError(f"Sequential sampling: cannot map triplet {triplet} to state_id.")
+				if use_physical_states:
+					triplet = parsed_triplets[cam_idx]
+					state_id = int(state_id_by_triplet.get(tuple(triplet), -1))
+					if state_id < 0:
+						raise RuntimeError(f"Sequential sampling: cannot map triplet {triplet} to state_id.")
+				else:
+					# In camera-based mode, state_id = camera_idx
+					state_id = int(cam_idx)
 				hdr_id = int((int(step) * int(batch_size) + int(bi)) % max(1, len(hdr_bases_cpu)))
 				config_id = hpcm.config_id(state_id, hdr_id)
 			else:
@@ -1141,7 +1182,7 @@ def main():
 				if config_id is None or state_id is None or hdr_id is None:
 					available_state_ids = [i for i, lst in enumerate(cams_by_state) if lst]
 					if not available_state_ids:
-						raise RuntimeError("HPCM: no available states with cameras after building cartesian product.")
+						raise RuntimeError("HPCM: no available states with cameras.")
 					state_id = int(rng.choice(available_state_ids))
 					hdr_id = int(rng.integers(0, len(hdr_bases_cpu)))
 					config_id = hpcm.config_id(state_id, hdr_id)
@@ -1398,16 +1439,16 @@ def main():
 				except Exception:
 					pass
 
-		# --- STAGE 1: Render Multi-Weather Images for Offline Evaluation ---
+		# --- STAGE 1: Render Final Images for Offline Evaluation (using ori background only) ---
 		final_full_img_dirs_mw = {}
 		if bool(getattr(args, 'save_final_full_images_mw', True)):
-			print("[消息] [最终评估] 正在渲染多天气（跨光）最终图片用于离线评估...")
-			final_full_img_dirs_mw = render_and_save_final_images_mw(
+			print("[消息] [最终评估] 正在渲染最终图片用于离线评估（使用 ori 目录的原始背景）...")
+			final_full_img_dirs_mw = render_and_save_final_images_ori(
 				full_cameras, gaussians, pipe, bg, args, dataset,
 				gaussians_original, None, save_dir, 'full'
 			)
 		else:
-			print("[消息] [最终评估] 已跳过渲染多天气图片，将不会执行离線評估。")
+			print("[消息] [最终评估] 已跳过渲染最终图片，将不会执行离线评估。")
 
 		# --- (NEW) Also export evaluation_results_rpga.txt (same format as evaluate_img_rpga.py) ---
 		# This evaluates final_*_images_* folders under save_dir and writes a unified summary txt.
@@ -1475,10 +1516,10 @@ def main():
 					if not hasattr(curr_detector, 'CLASSES'):
 						curr_detector.CLASSES = coco_classes
 
-					# Evaluate Multi-Weather Directories from saved images
+					# Evaluate Directories from saved images (using ori background)
 					mw_results = []
 					if not final_full_img_dirs_mw:
-						print("  - [结果] 未渲染任何多天气图片，跳过评估。")
+						print("  - [结果] 未渲染任何图片，跳过评估。")
 					else:
 						for weather_name, img_dir in final_full_img_dirs_mw.items():
 							asr_f_w, succ_f_w, total_f_w, ap50_f_w = evaluate_from_saved_images(
@@ -1490,14 +1531,14 @@ def main():
 					print(f"  - [结果] 检测器: {det_name}")
 					with open(log_file_path, 'a', encoding='utf-8') as f:
 						f.write(f"Detector: {det_name}\n")
-						# Write MW results
+						# Write evaluation results
 						if mw_results:
-							f.write("  - [Multi-Weather Evaluation on Full Set]\n")
+							f.write("  - [Evaluation on Full Set (ori background)]\n")
 							for (wname, split, asr_w, succ_w, total_w, ap50_w) in mw_results:
 								print(f"    * {wname}: ASR={asr_w:.4f}")
 								f.write(f"    * {wname} [{split}] ASR: {asr_w:.4f} ({succ_w}/{total_w}), AP@0.5: {ap50_w:.4f}\n")
 						else:
-							f.write("  - No multi-weather images were rendered for evaluation.\n")
+							f.write("  - No images were rendered for evaluation.\n")
 						f.write("-" * 30 + "\n")
 						
 					# Cleanup

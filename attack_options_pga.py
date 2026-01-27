@@ -17,7 +17,7 @@ def get_attack_args():
     parser.add_argument(
         "--total_steps",
         type=int,
-        default=20000,
+        default=2000,
         help="Total number of optimization steps (batches). Training stops when reached.",
     )
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for the attack.")
@@ -40,7 +40,7 @@ def get_attack_args():
     parser.add_argument(
         "--hpcm_sampling",
         type=str,
-        default="hpcm",
+        default="sequential",
         choices=["hpcm", "sequential"],
         help=(
             "Sampling mode ablation. "
@@ -162,7 +162,7 @@ def get_attack_args():
     parser.add_argument(
         "--detector",
         type=str,
-        default="yolox",
+        default="yolov3",
         choices=["yolov3", "yolox", "faster-rcnn", "mask-rcnn", "d-detr", "pvt", "detr"],
         help="Object detector to use for the attack.",
     )
@@ -184,15 +184,15 @@ def get_attack_args():
         choices=["perturb", "random"],
         help='Albedo initialization method: "perturb" adds random noise to original albedo, "random" initializes randomly within original range.',
     )
-    parser.add_argument("--reg_loss_weight", type=float, default=0, help="Weight for the regression loss component in the total adversarial loss.")
+    parser.add_argument("--reg_loss_weight", type=float, default=0.0, help="Weight for the regression loss component in the total adversarial loss.")
     parser.add_argument(
         "--phy_constraint_loss",
-        default=True,
+        default=False,
         action=argparse.BooleanOptionalAction,
         help="Enable physical constraint loss on red_mask region (contrast/saturation/TV).",
     )
-    parser.add_argument("--phy_contrast_weight", type=float, default=0.3, help="Weight for contrast term in phy_constraint_loss.")
-    parser.add_argument("--phy_saturation_weight", type=float, default=0.3, help="Weight for saturation term in phy_constraint_loss.")
+    parser.add_argument("--phy_contrast_weight", type=float, default=0.1, help="Weight for contrast term in phy_constraint_loss.")
+    parser.add_argument("--phy_saturation_weight", type=float, default=0.1, help="Weight for saturation term in phy_constraint_loss.")
     parser.add_argument("--phy_tv_weight", type=float, default=0.05, help="Weight for TV term in phy_constraint_loss.")
 
     # =================================================================================

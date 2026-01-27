@@ -40,7 +40,7 @@ def get_attack_args():
     parser.add_argument(
         "--hpcm_sampling",
         type=str,
-        default="hpcm",
+        default="sequential",
         choices=["hpcm", "sequential"],
         help=(
             "Sampling mode ablation. "
@@ -185,15 +185,6 @@ def get_attack_args():
         help='Albedo initialization method: "perturb" adds random noise to original albedo, "random" initializes randomly within original range.',
     )
     parser.add_argument("--reg_loss_weight", type=float, default=0, help="Weight for the regression loss component in the total adversarial loss.")
-    parser.add_argument(
-        "--phy_constraint_loss",
-        default=True,
-        action=argparse.BooleanOptionalAction,
-        help="Enable physical constraint loss on red_mask region (contrast/saturation/TV).",
-    )
-    parser.add_argument("--phy_contrast_weight", type=float, default=0.3, help="Weight for contrast term in phy_constraint_loss.")
-    parser.add_argument("--phy_saturation_weight", type=float, default=0.3, help="Weight for saturation term in phy_constraint_loss.")
-    parser.add_argument("--phy_tv_weight", type=float, default=0.05, help="Weight for TV term in phy_constraint_loss.")
 
     # =================================================================================
     # Environment / Relighting (discrete HDR selection; NO envlight optimization)

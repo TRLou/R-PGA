@@ -31,24 +31,25 @@ import matplotlib.pyplot as plt
 # =================================================================================
 
 # User-defined color palette (RGB values from 0-255, converted to 0-1)
+# Reversed direction: Blue -> ... -> Red
 COLOR_PALETTE = [
-    (213/255.0, 105/255.0, 93/255.0),
-    (245/255.0, 176/255.0, 65/255.0),
-    (246/255.0, 218/255.0, 101/255.0),
-    (82/255.0, 190/255.0, 128/255.0),
-    (145/255.0, 223/255.0, 208/255.0),
-    (93/255.0, 173/255.0, 226/255.0),
-    (163/255.0, 105/255.0, 189/255.0),
-    (138/255.0, 112/255.0, 103/255.0),
-    (255/255.0, 188/255.0, 167/255.0),
-    (72/255.0, 79/255.0, 152/255.0),
-    (255/255.0, 255/255.0, 133/255.0),
+    (93/255.0, 173/255.0, 226/255.0),   # Blue (was idx 5)
+    (72/255.0, 79/255.0, 152/255.0),    # Dark Blue (was idx 9)
+    (145/255.0, 223/255.0, 208/255.0),  # Cyan (was idx 4)
+    (82/255.0, 190/255.0, 128/255.0),   # Green (was idx 3)
+    (255/255.0, 255/255.0, 133/255.0),  # Pale Yellow (was idx 10)
+    (246/255.0, 218/255.0, 101/255.0),  # Yellow (was idx 2)
+    (245/255.0, 176/255.0, 65/255.0),   # Orange (was idx 1)
+    (255/255.0, 188/255.0, 167/255.0),  # Pink (was idx 8)
+    (163/255.0, 105/255.0, 189/255.0),  # Purple (was idx 6)
+    (213/255.0, 105/255.0, 93/255.0),   # Red (was idx 0)
 ]
 
 # User-defined method order
+# Note: DAS is excluded by default (filtered in txt2csv.py)
 METHOD_ORDER = [
-    'ori', 'das', 'fca', 'dta', 'active', 'rauca',
-    'gcac', 'grac', 'rauca-e2e', 'raucae2e', 'rpga'
+    'ORI', 'FCA', 'DTA', 'ACTIVE', 'RAUCA',
+    'GCAC', 'GRAC', 'RAUCA-E2E', 'PGA', 'R-PGA'
 ]
 
 
@@ -113,8 +114,11 @@ def read_long_csv(path: Path) -> list[dict]:
             r["table_id"] = str(r.get("table_id", "")).strip()
             method_str = str(r.get("method", "")).strip()
             # Normalize method names for consistency
-            if method_str == 'raucae2e':
-                method_str = 'rauca-e2e'
+            if method_str.lower() == 'raucae2e':
+                method_str = 'RAUCA-E2E'
+            else:
+                # Convert to uppercase for display
+                method_str = method_str.upper()
             r["method"] = method_str
             r["variable_type"] = str(r.get("variable_type", "")).strip()
             r["variable_value"] = str(r.get("variable_value", "")).strip()
@@ -208,7 +212,12 @@ def plot_line_table(
 ) -> None:
     methods = _get_ordered_methods(rows)
     by_method = _group_by_method(rows)
-    color_map = {method: color for method, color in zip(methods, COLOR_PALETTE)}
+    # Create color map, ensuring R-PGA gets red color
+    red_color = (213/255.0, 105/255.0, 93/255.0)  # Red color
+    color_map = {method: COLOR_PALETTE[i % len(COLOR_PALETTE)] for i, method in enumerate(methods)}
+    # Ensure R-PGA uses red color
+    if 'R-PGA' in methods:
+        color_map['R-PGA'] = red_color
 
     fig, ax = plt.subplots(figsize=(8.0, 4.8))
     for m in methods:
@@ -256,7 +265,12 @@ def plot_grouped_bar_table(
 ) -> None:
     methods = _get_ordered_methods(rows)
     categories = sorted({r["variable_value"] for r in rows})
-    color_map = {method: color for method, color in zip(methods, COLOR_PALETTE)}
+    # Create color map, ensuring R-PGA gets red color
+    red_color = (213/255.0, 105/255.0, 93/255.0)  # Red color
+    color_map = {method: COLOR_PALETTE[i % len(COLOR_PALETTE)] for i, method in enumerate(methods)}
+    # Ensure R-PGA uses red color
+    if 'R-PGA' in methods:
+        color_map['R-PGA'] = red_color
 
     # lookup[(method, category)] = metric
     lookup: Dict[Tuple[str, str], float] = {}
@@ -315,7 +329,7 @@ def main() -> None:
     if args.metric in ("asr", "both"):
         metrics.append(("mean_asr", "ASR", "Mean ASR"))
     if args.metric in ("ap50", "both"):
-        metrics.append(("mean_ap50", "AP50", "Mean AP@0.5"))
+        metrics.append(("mean_ap50", "AP@0.5", "Mean AP@0.5"))
 
     for metric_key, metric_name, ylabel in metrics:
         if t1:
