@@ -205,8 +205,8 @@ def main() -> None:
     ModelParams(parser)
     PipelineParams(parser)
 
-    parser.add_argument("--ply_path", type=str, default="RGA_output/paper_exp/point_cloud_final.ply", help="指向 point_cloud_final.ply 的路径")
-    parser.add_argument("--output_dir", type=str, default="RGA_output/paper_exp/albedo_views", help="albedo 输出目录")
+    parser.add_argument("--ply_path", type=str, default="RGA_output/0201_143919_Beijing/point_cloud_final.ply", help="指向 point_cloud_final.ply 的路径")
+    parser.add_argument("--output_dir", type=str, default="RGA_output/0201_143919_Beijing/albedo_views", help="albedo 输出目录")
     parser.add_argument("--checkpoint_path", type=str, default="", help="可选：加载 checkpoint（.pth）代替 PLY")
     parser.add_argument("--split", type=str, default="all", choices=["train", "test", "all"], help="导出视角集合")
     parser.add_argument("--max_views", type=int, default=-1, help="最多导出视角数（<=0 表示不限制）")

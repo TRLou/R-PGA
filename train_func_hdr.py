@@ -242,6 +242,112 @@ def compute_phy_constraint_loss(
 	return w_contrast * contrast_loss + w_sat * sat_loss + w_tv * tv_loss
 
 
+def _get_color_anchor_tensor(
+	args: argparse.Namespace,
+	device: torch.device,
+	dtype: torch.dtype,
+) -> torch.Tensor:
+	"""
+	Return color anchors in [0,1] range (K,3). Defaults to high-contrast palette.
+	"""
+	anchors = getattr(args, "anchor_colors", None)
+	if isinstance(anchors, str):
+		try:
+			anchors = json.loads(anchors)
+		except Exception:
+			print("[警告] anchor_colors 解析失败，将使用默认调色板。")
+			anchors = None
+	if anchors is None:
+		anchors = [
+			(0.0, 0.0, 0.0),  # black
+			(1.0, 0.0, 0.0),  # red
+			(0.0, 1.0, 0.0),  # green
+			(0.0, 0.0, 1.0),  # blue
+			(0.0, 1.0, 1.0),  # cyan
+			(1.0, 0.0, 1.0),  # magenta
+			(1.0, 1.0, 0.0),  # yellow
+			(1.0, 0.5, 0.0),  # orange
+		]
+	anchors_t = torch.tensor(anchors, device=device, dtype=dtype)
+	return anchors_t
+
+
+def compute_color_anchor_loss(
+	img_chw: torch.Tensor,
+	mask: torch.Tensor | None,
+	args: argparse.Namespace,
+) -> torch.Tensor:
+	"""
+	Palette regularization: pull each pixel toward nearest color anchor.
+	"""
+	img = img_chw.clamp(0.0, 1.0)
+	H, W = img.shape[-2], img.shape[-1]
+	if mask is not None:
+		if mask.dim() == 3:
+			if mask.shape[0] == 1:
+				mask_2d = mask.squeeze(0)
+			else:
+				mask_2d = mask[0]
+		else:
+			mask_2d = mask
+		mask_2d = mask_2d.to(device=img.device, dtype=img.dtype).clamp(0.0, 1.0)
+	else:
+		mask_2d = None
+
+	pixels = img.permute(1, 2, 0).reshape(-1, 3)
+	if mask_2d is not None:
+		mask_flat = mask_2d.reshape(-1)
+		valid = mask_flat > 1e-6
+		if not torch.any(valid):
+			return torch.zeros((), device=img.device, dtype=img.dtype)
+		pixels = pixels[valid]
+
+	anchors = _get_color_anchor_tensor(args, device=img.device, dtype=img.dtype)
+	diff = pixels[:, None, :] - anchors[None, :, :]
+	dist2 = (diff * diff).sum(dim=-1)
+	min_dist = dist2.min(dim=1).values
+	return min_dist.mean()
+
+
+def _resolve_target_class_idx(args: argparse.Namespace) -> int:
+	"""
+	Resolve target class index once and cache on args.
+	Fallback to 'car' if target_class_name is invalid.
+	"""
+	cached = getattr(args, "_target_class_idx_cache", None)
+	if isinstance(cached, int) and cached >= 0:
+		return cached
+	name = str(getattr(args, "target_class_name", "car"))
+	try:
+		idx = int(coco_classes.index(name))
+	except ValueError:
+		print(f"[警告] target_class_name='{name}' 不在 COCO classes 中，已回退到 'car'.")
+		idx = int(coco_classes.index("car"))
+	setattr(args, "_target_class_idx_cache", idx)
+	return idx
+
+
+def _resolve_attack_target_class_idx(args: argparse.Namespace) -> int:
+	"""
+	Resolve attack target class index once and cache on args.
+	Fallback to target_class_name if invalid.
+	"""
+	cached = getattr(args, "_attack_target_class_idx_cache", None)
+	if isinstance(cached, int) and cached >= 0:
+		return cached
+	name = str(getattr(args, "attack_target_class", ""))
+	if not name:
+		name = str(getattr(args, "target_class_name", "car"))
+	try:
+		idx = int(coco_classes.index(name))
+	except ValueError:
+		fallback = str(getattr(args, "target_class_name", "car"))
+		print(f"[警告] attack_target_class='{name}' 不在 COCO classes 中，回退到 '{fallback}'.")
+		idx = int(coco_classes.index(fallback))
+	setattr(args, "_attack_target_class_idx_cache", idx)
+	return idx
+
+
 def compute_batch_loss(
 	cam_batch: List,
 	gaussians: GaussianModel,
@@ -293,6 +399,13 @@ def compute_batch_loss(
 	detect_imgs = []
 	vis_data_batch = []
 	phy_losses = []
+	anchor_losses = []
+
+	target_class_idx = _resolve_target_class_idx(args)
+	attack_mode = str(getattr(args, "attack_mode", "untargeted")).lower()
+	is_targeted = attack_mode in ("targeted", "tar")
+	attack_target_class_idx = _resolve_attack_target_class_idx(args) if is_targeted else target_class_idx
+	score_thresh = float(getattr(args, "score_thresh", 0.5))
 
 	for cam in cam_batch:
 		name = cam.image_name
@@ -429,6 +542,13 @@ def compute_batch_loss(
 			phy_loss = compute_phy_constraint_loss(detect_img_chw, red_mask3, args)
 		phy_losses.append(phy_loss)
 
+		anchor_loss = torch.zeros((), device=detect_img_chw.device, dtype=detect_img_chw.dtype)
+		lambda_anchor = float(getattr(args, "lambda_anchor", 0.0))
+		if lambda_anchor > 0.0:
+			mask_for_anchor = red_mask3 if red_mask_path and full_mask_path else None
+			anchor_loss = compute_color_anchor_loss(rgb, mask_for_anchor, args)
+		anchor_losses.append(anchor_loss)
+
 		# Collect visualization data for this item
 		vis_item = {
 			'rgb': rgb.detach().clone(),
@@ -494,7 +614,7 @@ def compute_batch_loss(
 		t0 = time.perf_counter()
 	for i, pred in enumerate(preds):
 		pred_instances = pred.pred_instances
-		score_mask = pred_instances.scores >= 0.5
+		score_mask = pred_instances.scores >= score_thresh
 		pred_bboxes_filtered = pred_instances.bboxes[score_mask]
 		pred_scores_filtered = pred_instances.scores[score_mask]
 		pred_classes_filtered = pred_instances.labels[score_mask]
@@ -503,15 +623,31 @@ def compute_batch_loss(
 		if gt_bbox_i.dim() == 2 and gt_bbox_i.shape[0] > 1:
 			gt_bbox_i = gt_bbox_i[:1]
 
+		active_target_idx = attack_target_class_idx if is_targeted else target_class_idx
 		loss, cls_loss, reg_loss, _ = compute_adv_total_loss(
 			pred_bboxes=pred_bboxes_filtered, pred_scores=pred_scores_filtered,
-			pred_classes=pred_classes_filtered, gt_bbox=gt_bbox_i, target_class_idx=2,
+			pred_classes=pred_classes_filtered, gt_bbox=gt_bbox_i, target_class_idx=active_target_idx,
 			reg_loss_weight=args.reg_loss_weight
 		)
+		if is_targeted:
+			reg_w = float(getattr(args, "reg_loss_weight", 0.001))
+			target_mask = (pred_classes_filtered == attack_target_class_idx)
+			if torch.any(target_mask):
+				loss = (-cls_loss) + (reg_w * reg_loss)
+			else:
+				source_mask = (pred_classes_filtered == target_class_idx)
+				if torch.any(source_mask):
+					loss = pred_scores_filtered[source_mask].max()
+				else:
+					loss = torch.zeros((), device=imgs_for_det_batch.device, dtype=imgs_for_det_batch.dtype)
 		if not loss.requires_grad:
 			loss = loss + (imgs_for_det_batch.float().sum() * 0.0)
 		if i < len(phy_losses):
 			loss = loss + phy_losses[i]
+		if i < len(anchor_losses):
+			lambda_anchor = float(getattr(args, "lambda_anchor", 0.0))
+			if lambda_anchor > 0.0:
+				loss = loss + (lambda_anchor * anchor_losses[i])
 		per_sample_total_losses.append(loss)
 		batch_total_loss += loss
 		batch_cls_loss += cls_loss

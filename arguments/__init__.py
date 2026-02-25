@@ -48,7 +48,7 @@ class ModelParams(ParamGroup):
     def __init__(self, parser, sentinel=False):
         self.sh_degree = 3
         self._source_path = None
-        self._model_path = "trained_3dgs/carla_full_sunny_exp1.1"
+        self._model_path = "trained_3dgs/realcar11_obj"
         self._images = "images"
         self._resolution = -1
         self._white_background = True

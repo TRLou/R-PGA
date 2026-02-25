@@ -58,12 +58,13 @@ def load_labelme_annotation(json_path: str):
     label = shape.get('label')
     points = shape.get('points', [])
     
-    if not label or not points or len(points) != 2:
+    if not label or not points or len(points) < 2:
         return None, None
-        
-    (x1, y1), (x2, y2) = points
-    # Ensure x1 < x2 and y1 < y2
-    bbox = [min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)]
+
+    # LabelMe 可能是矩形（2点）或多边形（>2点），统一转为 bbox
+    xs = [p[0] for p in points]
+    ys = [p[1] for p in points]
+    bbox = [min(xs), min(ys), max(xs), max(ys)]
     
     return np.array([bbox], dtype=np.float32), label
 

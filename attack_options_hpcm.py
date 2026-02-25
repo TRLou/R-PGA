@@ -40,7 +40,7 @@ def get_attack_args():
     parser.add_argument(
         "--hpcm_sampling",
         type=str,
-        default="hpcm",
+        default="sequential",
         choices=["hpcm", "sequential"],
         help=(
             "Sampling mode ablation. "
@@ -166,7 +166,8 @@ def get_attack_args():
         choices=["yolov3", "yolox", "faster-rcnn", "mask-rcnn", "d-detr", "pvt", "detr"],
         help="Object detector to use for the attack.",
     )
-    parser.add_argument("--target_class_name", type=str, default="car", help="Target class name for the attack (COCO class).")
+    parser.add_argument("--target_class_name", type=str, default="car", help="Source class name to suppress (COCO class).")
+    parser.add_argument("--attack_target_class", type=str, default="kite", help="Attack target class name (COCO class).")
     parser.add_argument("--score_thresh", type=float, default=0.5, help="Score threshold for detection.")
 
     # =================================================================================
@@ -185,15 +186,36 @@ def get_attack_args():
         help='Albedo initialization method: "perturb" adds random noise to original albedo, "random" initializes randomly within original range.',
     )
     parser.add_argument("--reg_loss_weight", type=float, default=0, help="Weight for the regression loss component in the total adversarial loss.")
+    
+    parser.add_argument(
+        "--lambda_anchor",
+        type=float,
+        default=0.2,
+        help="Weight for color anchor (palette) regularization; 0 disables.",
+    )
+    parser.add_argument(
+        "--anchor_colors",
+        default=[
+            (0.0, 0.0, 0.0),  # black
+            (1.0, 0.0, 0.0),  # red
+            (0.0, 1.0, 0.0),  # green
+            (0.0, 0.0, 1.0),  # blue
+            (0.0, 1.0, 1.0),  # cyan
+            (1.0, 0.0, 1.0),  # magenta
+            (1.0, 1.0, 0.0),  # yellow
+            (1.0, 0.5, 0.0),  # orange
+        ],
+        help="Anchor color palette as list of (r,g,b) in [0,1].",
+    )
     parser.add_argument(
         "--phy_constraint_loss",
         default=True,
         action=argparse.BooleanOptionalAction,
         help="Enable physical constraint loss on red_mask region (contrast/saturation/TV).",
     )
-    parser.add_argument("--phy_contrast_weight", type=float, default=0.3, help="Weight for contrast term in phy_constraint_loss.")
-    parser.add_argument("--phy_saturation_weight", type=float, default=0.3, help="Weight for saturation term in phy_constraint_loss.")
-    parser.add_argument("--phy_tv_weight", type=float, default=0.05, help="Weight for TV term in phy_constraint_loss.")
+    parser.add_argument("--phy_contrast_weight", type=float, default=0., help="Weight for contrast term in phy_constraint_loss.")
+    parser.add_argument("--phy_saturation_weight", type=float, default=0., help="Weight for saturation term in phy_constraint_loss.")
+    parser.add_argument("--phy_tv_weight", type=float, default=-5, help="Weight for TV term in phy_constraint_loss.")
 
     # =================================================================================
     # Environment / Relighting (discrete HDR selection; NO envlight optimization)
@@ -201,7 +223,7 @@ def get_attack_args():
     parser.add_argument("--environment_texture", type=str, default="", help="Path to the environment texture (HDR). If set, overrides HDR bank.")
     parser.add_argument("--environment_scale", type=float, default=1.0, help="Scale of the environment light.")
     parser.add_argument("--hdr_rotation", action="store_true", default=False, help="Enable random rotation of the HDR environment map during training.")
-    parser.add_argument("--enable_lbm_relight", default=False, action=argparse.BooleanOptionalAction, help="Enable LBM background relighting.")
+    parser.add_argument("--enable_lbm_relight", default=True, action=argparse.BooleanOptionalAction, help="Enable LBM background relighting.")
     parser.add_argument("--lbm_ckpt_dir", type=str, default="/workspace/RGA/lbm_ckpt3", help="Path to LBM checkpoints directory.")
     parser.add_argument("--hdr_bank_dir", type=str, default="/workspace/RGA/hdri/carla_hdr_part", help="Directory of HDR/EXR files as discrete envmaps.")
     parser.add_argument(

@@ -111,7 +111,7 @@ def base_cubemap_to_sh(base_cubemap: torch.Tensor, device: torch.device) -> torc
 
     # 2. Resize latlong to fixed small resolution (128, 64)
     target_w, target_h = 128, 64
-    # 修正：使用百分位数进行归一化，以抵抗离群值
+    # Fix: use percentile for normalization to resist outliers
     # max_val = np.percentile(latlong_np, 99.5) if np.max(latlong_np) > 0 else 1.0
     max_val = np.max(latlong_np) if np.max(latlong_np) > 0 else 1.0
     latlong_norm = np.clip(latlong_np / max_val, 0.0, 1.0)
@@ -527,20 +527,20 @@ def export_hpcm_monitor(
 						plt.close(fig)
 		except Exception as e:
 			# Avoid crashing training due to visualization failures.
-			print(f"[警告] [HPCM] 导出监控图失败: {e}")
+			print(f"[WARN] [HPCM] Failed to export monitor plots: {e}")
 
 	return scores.copy()
 
 def main():
 	# =================================================================================
-	# 1. 参数解析（HPCM: MIN-only, step-based）
+	# 1. Argument parsing (HPCM: MIN-only, step-based)
 	# =================================================================================
 	args, model_params, pipeline_params = get_attack_args()
-	# HPCM 不使用基于梯度的内部最大化（SGLD/PGD）、不使用 min-max、也不使用 replay buffer。
+	# HPCM does not use gradient-based inner maximization (SGLD/PGD), min-max, or replay buffer.
 	initial_env_base_cpu = None
 
 	# =================================================================================
-	# 2. 环境与路径设置
+	# 2. Environment and path setup
 	# =================================================================================
 	device = torch.device(args.device)
 	save_dir = Path(args.save_dir)
@@ -576,17 +576,17 @@ def main():
 					f"Failed to create save dir at '{save_dir}' and '{fallback1}'. "
 					"Please set --save_dir to a writable path under /workspace."
 				) from e2
-	print(f"[消息] 输出将保存到: {save_dir}")
+	print(f"[INFO] Output will be saved to: {save_dir}")
 
 	# Save command line arguments to a file
 	args_save_path = save_dir / "args.txt"
 	with open(args_save_path, 'w') as f:
 		for k, v in sorted(vars(args).items()):
 			f.write(f"{k}: {v}\n")
-	print(f"[消息] 命令行参数已保存到: {args_save_path}")
+	print(f"[INFO] Command-line arguments saved to: {args_save_path}")
 
 	# =================================================================================
-	# 3. 加载场景与高斯模型
+	# 3. Load scene and Gaussian model
 	# =================================================================================
 	dataset = model_params.extract(args)
 	# dataset.eval = True # Reverted: We will manually split cameras instead.
@@ -597,11 +597,11 @@ def main():
 		gaussians = GaussianModel(dataset.sh_degree)
 
 	if args.environment_texture == "":
-		print("[消息] 未提供 environment_texture，将尝试从最新的检查点加载 'envlight'...")
+		print("[INFO] No environment_texture provided, will try to load 'envlight' from latest checkpoint...")
 		model_dir = Path(dataset.model_path)
 		latest_ckpt_path = latest_checkpoint_pth(model_dir)
 		if latest_ckpt_path:
-			print(f"[消息] 找到最新检查点: {latest_ckpt_path}")
+			print(f"[INFO] Found latest checkpoint: {latest_ckpt_path}")
 			try:
 				# The .pth file contains a tuple: (captured_model_tuple, iteration_number)
 				ckpt_data_tuple, _ = torch.load(str(latest_ckpt_path), map_location=device)
@@ -620,31 +620,31 @@ def main():
 							break # Found it
 
 				if envlight_state_dict is not None:
-					print("[消息] 正在从检查点加载 'env_light'...")
+					print("[INFO] Loading 'env_light' from checkpoint...")
 					# Load the state into the default envlight object that comes with the gaussians model
 					gaussians.envlight.load_state_dict(envlight_state_dict)
-					print("[消息] 成功加载 'envlight'。")
-					# 加载后重建 base 与 mips，确保采样链与参数一致
+					print("[INFO] Successfully loaded 'envlight'.")
+					# Rebuild base and mips after load to keep sampling chain consistent with params
 					try:
 						gaussians.envlight.build_base()
 						gaussians.envlight.build_mips()
-						print("[消息] 已根据加载参数重建 envlight base 与 mips。")
-						# 保存初始 base（CPU 拷贝）
+						print("[INFO] Rebuilt envlight base and mips from loaded params.")
+						# Save initial base (CPU copy)
 						try:
 							initial_env_base_cpu = gaussians.envlight.base.detach().cpu().clone()
 						except Exception:
 							initial_env_base_cpu = None
 					except Exception as e:
-						print(f"[警告] 重建 envlight base/mips 失败: {e}")
+						print(f"[WARN] Failed to rebuild envlight base/mips: {e}")
 
 				else:
-					print("[消息] 在检查点中未找到 'env_light' 的 state_dict，将在无环境光情况下继续。")
+					print("[INFO] No 'env_light' state_dict found in checkpoint, continuing without env light.")
 			except Exception as e:
-				print(f"[消息] 从检查点加载 envlight 失败: {e}")
+				print(f"[INFO] Failed to load envlight from checkpoint: {e}")
 		else:
-			print("[消息] 未找到 '.pth' 检查点文件，将在无环境光情况下继续。")
+			print("[INFO] No '.pth' checkpoint file found, continuing without env light.")
 
-	# 若未能从 checkpoint 设置初始 base，则以当前 base 为初始备份
+	# If initial base was not set from checkpoint, use current base as initial backup
 	if initial_env_base_cpu is None:
 		try:
 			initial_env_base_cpu = gaussians.envlight.base.detach().cpu().clone()
@@ -669,7 +669,7 @@ def main():
 	if hasattr(gaussians, '_roughness_init'):
 		gaussians_original._roughness_init = torch.nn.Parameter(gaussians._roughness_init.clone().detach())
 	gaussians_original.envlight.load_state_dict(gaussians.envlight.state_dict())
-	# 同步一次 envlight.base，state_dict 不包含非参数的 base
+	# Sync envlight.base once; state_dict does not include non-parameter base
 	with torch.no_grad():
 		try:
 			gaussians_original.envlight.base = gaussians.envlight.base.detach().clone()
@@ -686,53 +686,53 @@ def main():
 	
 	with torch.no_grad():
 		initial_raw_albedo = gaussians._albedo_init.data
-		print(f"[消息] [检查] 模型加载后, _albedo_init 范围: [{initial_raw_albedo.min().item():.4f}, {initial_raw_albedo.max().item():.4f}]")
+		print(f"[INFO] [Check] After model load, _albedo_init range: [{initial_raw_albedo.min().item():.4f}, {initial_raw_albedo.max().item():.4f}]")
 		gaussians._albedo_init.data.zero_()
 		zeroed_raw_albedo = gaussians._albedo_init.data
-		print(f"[消息] [修正] _albedo_init 已全部设置为 0. 新范围: [{zeroed_raw_albedo.min().item():.4f}, {zeroed_raw_albedo.max().item():.4f}]")
+		print(f"[INFO] [Fix] _albedo_init set to 0. New range: [{zeroed_raw_albedo.min().item():.4f}, {zeroed_raw_albedo.max().item():.4f}]")
 
 	# --- Perturb Initial Albedo if Enabled ---
 	if args.perturb_albedo:
-		print("[消息] [扰动] 启用反照率随机初始化...")
+		print("[INFO] [Perturb] Enabling albedo random initialization...")
 		with torch.no_grad():
 			albedo = gaussians.get_albedo_init
 			min_val, max_val = albedo.min(), albedo.max()
 			original_mean = albedo.mean().item()
 			
 			if args.albedo_init_method == 'perturb':
-				print(f"[消息] [扰动] 使用 'perturb' 方法进行初始化...")
+				print(f"[INFO] [Perturb] Using 'perturb' method for initialization...")
 				budget = (max_val - min_val) * args.perturb_budget_factor
-				# 生成初始化扰动 [-budget, budget] 并添加在原始albedo上
+				# Generate init perturbation [-budget, budget] and add to original albedo
 				perturbation = (torch.rand_like(albedo) * 2 - 1) * budget
 				gaussians._albedo_init.data += perturbation
 				# gaussians._albedo_init.data.zero_()
 
 			elif args.albedo_init_method == 'random':
-				print(f"[消息] [扰动] 使用 'random' 方法进行初始化...")
-				# 在 [min_val, max_val] 范围内完全随机初始化
+				print(f"[INFO] [Perturb] Using 'random' method for initialization...")
+				# Fully random init in [min_val, max_val]
 				random_values = min_val + (max_val - min_val) * torch.rand_like(albedo)
 				gaussians._albedo_init.data = random_values
 
 			perturbed_mean = gaussians.get_albedo_init.mean().item()
 
-			print(f"[消息] [扰动] 原始反照率范围: [{min_val:.4f}, {max_val:.4f}]")
-			print(f"[消息] [扰动] 扰动前平均反照率: {original_mean:.4f}")
-			print(f"[消息] [扰动] 扰动后平均反照率: {perturbed_mean:.4f}")
+			print(f"[INFO] [Perturb] Original albedo range: [{min_val:.4f}, {max_val:.4f}]")
+			print(f"[INFO] [Perturb] Mean albedo before perturb: {original_mean:.4f}")
+			print(f"[INFO] [Perturb] Mean albedo after perturb: {perturbed_mean:.4f}")
 
 	# DEBUG: print number of gaussians (ellipsoids)
 	try:
 		num_gaussians = int(gaussians.get_xyz.shape[0])
-		print(f"[消息] [模型] 高斯数量={num_gaussians}")
+		print(f"[INFO] [Model] Number of Gaussians={num_gaussians}")
 		# opacity / albedo quick stats
 		op = gaussians.get_opacity
-		print(f"[消息] [模型] 不透明度统计: 最小={float(op.min().item()):.6f}, 最大={float(op.max().item()):.6f}, 平均={float(op.mean().item()):.6f}")
+		print(f"[INFO] [Model] Opacity stats: min={float(op.min().item()):.6f}, max={float(op.max().item()):.6f}, mean={float(op.mean().item()):.6f}")
 		alb = gaussians.get_albedo_init
-		print(f"[消息] [模型] 反照率统计: 最小={float(alb.min().item()):.6f}, 最大={float(alb.max().item()):.6f}, 平均={float(alb.mean().item()):.6f}")
+		print(f"[INFO] [Model] Albedo stats: min={float(alb.min().item()):.6f}, max={float(alb.max().item()):.6f}, mean={float(alb.mean().item()):.6f}")
 	except Exception as e:
-		print(f"[消息] [模型] 读取高斯数量失败: {e}")
+		print(f"[INFO] [Model] Failed to read Gaussian count: {e}")
 
 	# =================================================================================
-	# 4. 初始化渲染器与优化器
+	# 4. Initialize renderer and optimizer
 	# =================================================================================
 	bg_color = [1.0, 1.0, 1.0] if dataset.white_background else [0.0, 0.0, 0.0]
 	bg = torch.tensor(bg_color, dtype=torch.float32, device=device)
@@ -741,18 +741,18 @@ def main():
 	# Dynamically create the optimizer based on user's choice
 	if args.optimizer == 'adam':
 		optimizer_min = torch.optim.Adam([gaussians._albedo_init], lr=args.lr)
-		print(f"[消息] [优化器] 使用 Adam, 学习率: {args.lr}")
+		print(f"[INFO] [Optimizer] Using Adam, lr: {args.lr}")
 	elif args.optimizer == 'sgd':
 		optimizer_min = torch.optim.SGD([gaussians._albedo_init], lr=args.lr, momentum=args.momentum)
-		print(f"[消息] [优化器] 使用 SGD, 学习率: {args.lr}, 动量: {args.momentum}")
+		print(f"[INFO] [Optimizer] Using SGD, lr: {args.lr}, momentum: {args.momentum}")
 	elif args.optimizer == 'adamw':
 		optimizer_min = torch.optim.AdamW([gaussians._albedo_init], lr=args.lr)
-		print(f"[消息] [优化器] 使用 AdamW, 学习率: {args.lr}")
+		print(f"[INFO] [Optimizer] Using AdamW, lr: {args.lr}")
 	else:
 		# This case should not be reached due to 'choices' in argparse
-		raise ValueError(f"未知的优化器类型: {args.optimizer}")
+		raise ValueError(f"Unknown optimizer type: {args.optimizer}")
 
-	# HPCM: 冻结 envlight（不做梯度最大化，只进行离散 HDR 切换）
+	# HPCM: freeze envlight (no gradient maximization, only discrete HDR switching)
 	try:
 		for p in gaussians.envlight.parameters():
 			p.requires_grad = False
@@ -766,9 +766,9 @@ def main():
 
 
 	# =================================================================================
-	# 5. 初始化目标检测器与损失函数
+	# 5. Initialize detector and loss
 	# =================================================================================
-	print("[消息] 正在初始化检测器...")
+	print("[INFO] Initializing detector...")
 
 	base_path = Path('/workspace/RGA/mmdet_files')
 	
@@ -781,8 +781,8 @@ def main():
 
 	cfg_path = base_path / selected_detector['config']
 	ckpt_path = base_path / selected_detector['ckpt']
-	print(f"[消息] 配置文件路径: {cfg_path}")
-	print(f"[消息] 权重文件路径: {ckpt_path}")
+	print(f"[INFO] Config path: {cfg_path}")
+	print(f"[INFO] Checkpoint path: {ckpt_path}")
 	if not cfg_path.is_file():
 		raise FileNotFoundError(f"Config file not found: {cfg_path}. Please check the path and ensure 'mmdet_files' is set up correctly.")
 	if not ckpt_path.is_file():
@@ -792,8 +792,8 @@ def main():
 
 	args.detector_cfg = cfg_path
 	args.detector_ckpt = ckpt_path
-	print(f"[消息] 配置文件路径: {cfg_path}")
-	print(f"[消息] 权重文件路径: {ckpt_path}")
+	print(f"[INFO] Config path: {cfg_path}")
+	print(f"[INFO] Checkpoint path: {ckpt_path}")
 	# MMDetLoss is a wrapper, but for custom loss logic, we use the model directly.
 	detector = init_detector(cfg_path, ckpt_path, device=device)
 	for p in detector.parameters():
@@ -801,24 +801,24 @@ def main():
 	detector.eval()
 	if not hasattr(detector, 'CLASSES'):
 		detector.CLASSES = coco_classes
-	print("[消息] 检测器初始化完成。")
+	print("[INFO] Detector initialized.")
 
 	# =================================================================================
 	# 5.5. (Optional) Initialize LBM Relighter
 	# =================================================================================
 	relighter = None
 	if args.enable_lbm_relight:
-		print("[消息] LBM 背景重打光已启用。正在初始化 LBMRelighter...")
+		print("[INFO] LBM background relighting enabled. Initializing LBMRelighter...")
 		try:
 			relighter = LBMRelighter(ckpt_dir=args.lbm_ckpt_dir, device=device)
-			print("[消息] LBMRelighter 初始化完成。")
+			print("[INFO] LBMRelighter initialized.")
 		except Exception as e:
-			print(f"[警告] LBMRelighter 初始化失败: {e}。将禁用背景重打光。")
+			print(f"[WARN] LBMRelighter init failed: {e}. Background relighting disabled.")
 			relighter = None
 
 
 	# =================================================================================
-	# 6. HPCM：构建离散状态表并进行 step-based MIN 优化
+	# 6. HPCM: build discrete state table and step-based MIN optimization
 	# =================================================================================
 	render_global_step = int(getattr(args, "global_step_start", 60000))
 	batch_size = int(args.batch_size)
@@ -827,7 +827,7 @@ def main():
 	logger = TrainingLogger(save_dir)
 
 	# --- Manual Train/Test Split (for final evaluation only) ---
-	print("[消息] 正在抽取测试子集（训练集=全集，HPCM: step-based training）...")
+	print("[INFO] Extracting test subset (train set=full, HPCM: step-based training)...")
 	all_cameras = list(scene.getTrainCameras())  # With eval=False, this gets all cameras
 	random.shuffle(all_cameras)
 	if args.max_cams > 0:
@@ -848,8 +848,8 @@ def main():
 	train_cameras = parsed_train
 
 	print(
-		f"[消息] 划分完成. 训练集(全集，有标注且可解析pitch/angle/distance): {len(train_cameras)} 张, "
-		f"测试子集: {len(test_cameras)} 张"
+		f"[INFO] Split done. Train set (full, with annotations and parseable pitch/angle/distance): {len(train_cameras)} images, "
+		f"test subset: {len(test_cameras)} images"
 	)
 	if len(train_cameras) == 0:
 		raise RuntimeError(
@@ -869,9 +869,9 @@ def main():
 	)
 	if freeze_hdr_to_ckpt:
 		if isinstance(getattr(args, "environment_texture", ""), str) and len(args.environment_texture) > 0:
-			print(f"[消息] [HDR-Ablation] enable_lbm_relight=False 且 hpcm_sampling=hpcm：忽略 environment_texture={args.environment_texture}")
+			print(f"[INFO] [HDR-Ablation] enable_lbm_relight=False and hpcm_sampling=hpcm: ignoring environment_texture={args.environment_texture}")
 		if isinstance(getattr(args, "hdr_bank_dir", ""), str) and len(args.hdr_bank_dir) > 0:
-			print(f"[消息] [HDR-Ablation] enable_lbm_relight=False 且 hpcm_sampling=hpcm：忽略 hdr_bank_dir={args.hdr_bank_dir}")
+			print(f"[INFO] [HDR-Ablation] enable_lbm_relight=False and hpcm_sampling=hpcm: ignoring hdr_bank_dir={args.hdr_bank_dir}")
 		base_cpu = None
 		try:
 			if initial_env_base_cpu is not None:
@@ -890,10 +890,10 @@ def main():
 			)
 		hdr_bases_cpu = [base_cpu]
 		hdr_names = ["ckpt_base"]
-		print("[消息] [HDR-Ablation] 已固定车辆 HDR 为 checkpoint base（HPCM 的 HDR 维度=1）。")
+		print("[INFO] [HDR-Ablation] Vehicle HDR fixed to checkpoint base (HPCM HDR dim=1).")
 	else:
 		if isinstance(getattr(args, "environment_texture", ""), str) and len(args.environment_texture) > 0:
-			print(f"[消息] [HDR] 使用单一 environment_texture: {args.environment_texture}")
+			print(f"[INFO] [HDR] Using single environment_texture: {args.environment_texture}")
 			tmp_env = EnvLightClass(
 				path=str(args.environment_texture),
 				device=("cuda" if torch.cuda.is_available() else "cpu"),
@@ -911,10 +911,10 @@ def main():
 			hdr_bank_dir = getattr(args, "hdr_bank_dir", "")
 			hdr_dir_path = Path(hdr_bank_dir) if isinstance(hdr_bank_dir, str) else None
 			if hdr_dir_path is None or not hdr_dir_path.is_dir():
-				print(f"[警告] [HDR] hdr_bank_dir 无效: {hdr_bank_dir}，将回退到 checkpoint base。")
+				print(f"[WARN] [HDR] Invalid hdr_bank_dir: {hdr_bank_dir}, falling back to checkpoint base.")
 			else:
 				hdr_files = sorted([p for p in hdr_dir_path.iterdir() if p.suffix.lower() in [".hdr", ".exr"]])
-				print(f"[消息] [HDR Bank] 在 '{hdr_bank_dir}' 发现 {len(hdr_files)} 个 HDR/EXR 文件，开始预加载 base...")
+				print(f"[INFO] [HDR Bank] Found {len(hdr_files)} HDR/EXR files in '{hdr_bank_dir}', preloading base...")
 				for fp in hdr_files:
 					try:
 						tmp_env = EnvLightClass(
@@ -927,9 +927,9 @@ def main():
 						)
 						hdr_bases_cpu.append(tmp_env.base.detach().cpu().clone())
 						hdr_names.append(fp.name)
-						print(f"[消息] [HDR Bank] 已载入 base: {fp.name}")
+						print(f"[INFO] [HDR Bank] Loaded base: {fp.name}")
 					except Exception as e:
-						print(f"[警告] [HDR Bank] 载入失败: {fp.name}: {e}")
+						print(f"[WARN] [HDR Bank] Load failed: {fp.name}: {e}")
 					finally:
 						try:
 							del tmp_env
@@ -940,7 +940,7 @@ def main():
 
 	# Fallback: use checkpoint base as a single envmap if none loaded
 	if len(hdr_bases_cpu) == 0 and initial_env_base_cpu is not None:
-		print("[消息] [HDR] 未加载任何 HDR 文件，使用 checkpoint 的 envlight.base 作为唯一 EnvMap。")
+		print("[INFO] [HDR] No HDR files loaded, using checkpoint envlight.base as sole EnvMap.")
 		hdr_bases_cpu = [initial_env_base_cpu.detach().cpu().clone()]
 		hdr_names = ["ckpt_base"]
 
@@ -950,7 +950,7 @@ def main():
 	# --- Option B: Precompute SH coefficients for each HDR base ---
 	hdr_sh_cpu: list[torch.Tensor] | None = None
 	if bool(getattr(args, "hpcm_precompute_hdr_sh", True)):
-		print(f"[消息] [HPCM-Speed] 正在预计算 {len(hdr_bases_cpu)} 个 HDR 的 SH 系数...")
+		print(f"[INFO] [HPCM-Speed] Precomputing SH coefficients for {len(hdr_bases_cpu)} HDRs...")
 		hdr_sh_cpu = []
 		for i, base_cpu in enumerate(hdr_bases_cpu):
 			try:
@@ -959,17 +959,17 @@ def main():
 					sh = base_cubemap_to_sh(base_cpu.to(device), device).detach().cpu()
 				hdr_sh_cpu.append(sh)
 			except Exception as e:
-				print(f"[警告] [HPCM-Speed] 预计算失败 ({hdr_names[i]}): {e}")
+				print(f"[WARN] [HPCM-Speed] Precompute failed ({hdr_names[i]}): {e}")
 				hdr_sh_cpu.append(torch.zeros(27, dtype=torch.float32))
-		print("[消息] [HPCM-Speed] SH 预计算完成。")
+		print("[INFO] [HPCM-Speed] SH precompute done.")
 
 	# --- Option C: Initialize Relight Cache ---
 	relight_cache = {} if bool(getattr(args, "hpcm_enable_relight_cache", True)) else None
-	
+
 	# --- Option B: Precompute SH coefficients for each HDR base ---
 	hdr_sh_cpu: list[torch.Tensor] | None = None
 	if bool(getattr(args, "hpcm_precompute_hdr_sh", True)):
-		print(f"[消息] [HPCM-Speed] 正在预计算 {len(hdr_bases_cpu)} 个 HDR 的 SH 系数...")
+		print(f"[INFO] [HPCM-Speed] Precomputing SH coefficients for {len(hdr_bases_cpu)} HDRs...")
 		hdr_sh_cpu = []
 		for i, base_cpu in enumerate(hdr_bases_cpu):
 			try:
@@ -977,9 +977,9 @@ def main():
 					sh = base_cubemap_to_sh(base_cpu.to(device), device).detach().cpu()
 				hdr_sh_cpu.append(sh)
 			except Exception as e:
-				print(f"[警告] [HPCM-Speed] 预计算失败 ({hdr_names[i]}): {e}")
+				print(f"[WARN] [HPCM-Speed] Precompute failed ({hdr_names[i]}): {e}")
 				hdr_sh_cpu.append(torch.zeros(27, dtype=torch.float32))
-		print("[消息] [HPCM-Speed] SH 预计算完成。")
+		print("[INFO] [HPCM-Speed] SH precompute done.")
 
 	# --- Option C: Initialize Relight Cache ---
 	relight_cache = {} if bool(getattr(args, "hpcm_enable_relight_cache", True)) else None
@@ -1008,7 +1008,7 @@ def main():
 				force_rebuild=bool(getattr(args, "lbm_disk_cache_force_rebuild", False)),
 			)
 		except Exception as e:
-			print(f"[警告] [LBM-DiskCache] 预渲染失败: {e}。将继续正常训练并在训练中懒加载/懒写入缓存。")
+			print(f"[WARN] [LBM-DiskCache] Pre-render failed: {e}. Training will continue with lazy load/write cache.")
 
 	parsed_triplets: list[tuple[int, int, int]] = []
 	for cam in train_cameras:
@@ -1044,7 +1044,7 @@ def main():
 	cams_by_state: list[list[int]] = [cam_map.get(st, []) for st in state_bins]
 	state_id_by_triplet: dict[tuple[int, int, int], int] = {st: i for i, st in enumerate(state_bins)}
 
-	print(f"[消息] [HPCM] 状态数(来自相机离散化): {len(state_bins)}；EnvMap 数: {len(hdr_bases_cpu)}")
+	print(f"[INFO] [HPCM] Number of states (from camera discretization): {len(state_bins)}; EnvMap count: {len(hdr_bases_cpu)}")
 	hpcm = HPCMTable(
 		state_bins=state_bins,
 		hdr_names=hdr_names,
@@ -1286,7 +1286,7 @@ def main():
 					)
 				)
 			except Exception as e:
-				print(f"[警告] [PROFILE] 写 profile_hpcm_step.csv 失败: {e}")
+				print(f"[WARN] [PROFILE] Failed to write profile_hpcm_step.csv: {e}")
 
 		# Trigger saving bbox visualizations on the NEXT step every det_vis_interval steps.
 		if det_vis_interval > 0 and ((step + 1) % det_vis_interval == 0):
@@ -1312,12 +1312,12 @@ def main():
 			try:
 				hpcm_path = save_dir / "hpcm_table.npz"
 				hpcm.save_npz(hpcm_path, pitch_edges=pitch_edges, az_edges=az_edges, dist_edges=dist_edges)
-				print(f"\n[消息] [HPCM] 已保存 difficulty table: {hpcm_path}")
+				print(f"\n[INFO] [HPCM] Saved difficulty table: {hpcm_path}")
 				# Optional: keep step-suffixed snapshot for later comparison
 				if bool(getattr(args, "hpcm_save_history_npz", False)):
 					hpcm_hist_path = save_dir / f"hpcm_table_step_{step:06d}.npz"
 					hpcm.save_npz(hpcm_hist_path, pitch_edges=pitch_edges, az_edges=az_edges, dist_edges=dist_edges)
-					print(f"[消息] [HPCM] 已保存 difficulty snapshot: {hpcm_hist_path.name}")
+					print(f"[INFO] [HPCM] Saved difficulty snapshot: {hpcm_hist_path.name}")
 				# Optional: export human-friendly summaries/plots
 				if bool(getattr(args, "hpcm_export_summary", True)):
 					hpcm_prev_scores = export_hpcm_monitor(
@@ -1335,13 +1335,13 @@ def main():
 						dist_edges=dist_edges,
 					)
 			except Exception as e:
-				print(f"\n[警告] [HPCM] 保存 difficulty table 失败: {e}")
+				print(f"\n[WARN] [HPCM] Failed to save difficulty table: {e}")
 
 	# Save final HPCM table
 	try:
 		hpcm_path = save_dir / "hpcm_table_final.npz"
 		hpcm.save_npz(hpcm_path, pitch_edges=pitch_edges, az_edges=az_edges, dist_edges=dist_edges)
-		print(f"[消息] [HPCM] 已保存最终 difficulty table: {hpcm_path}")
+		print(f"[INFO] [HPCM] Saved final difficulty table: {hpcm_path}")
 		# Also export a final readable snapshot
 		if bool(getattr(args, "hpcm_export_summary", True)):
 			hpcm_prev_scores = export_hpcm_monitor(
@@ -1359,7 +1359,7 @@ def main():
 				dist_edges=dist_edges,
 			)
 	except Exception as e:
-		print(f"[警告] [HPCM] 保存最终 difficulty table 失败: {e}")
+		print(f"[WARN] [HPCM] Failed to save final difficulty table: {e}")
 
 
 	# --- After training, plot curves ---
@@ -1369,16 +1369,16 @@ def main():
 	logger.plot_ap_curve()
 
 	# =================================================================================
-	# 7. 最终评估与记录 (可选) - 修改为遍历所有检测器
+	# 7. Final evaluation and logging (optional) - iterate over all detectors
 	# =================================================================================
 	if args.run_final_eval:
-		print("\n[消息] 所有训练轮次完成。开始多检测器最终评估...")
+		print("\n[INFO] All training steps done. Starting final multi-detector evaluation...")
 		
 		# Define datasets
 		# Training already uses full set; avoid duplicates
 		full_cameras = train_cameras_all
 
-		# 在最终评估前恢复 envlight.base 为初始（checkpoint）版本（两套模型同步）
+		# Restore envlight.base to initial (checkpoint) version before final eval (sync both models)
 		selected_base_cpu = initial_env_base_cpu
 		if selected_base_cpu is None:
 			try:
@@ -1401,13 +1401,13 @@ def main():
 		# --- STAGE 1: Render Multi-Weather Images for Offline Evaluation ---
 		final_full_img_dirs_mw = {}
 		if bool(getattr(args, 'save_final_full_images_mw', True)):
-			print("[消息] [最终评估] 正在渲染多天气（跨光）最终图片用于离线评估...")
+			print("[INFO] [Final eval] Rendering multi-weather (cross-light) final images for offline evaluation...")
 			final_full_img_dirs_mw = render_and_save_final_images_mw(
 				full_cameras, gaussians, pipe, bg, args, dataset,
 				gaussians_original, None, save_dir, 'full'
 			)
 		else:
-			print("[消息] [最终评估] 已跳过渲染多天气图片，将不会执行离線評估。")
+			print("[INFO] [Final eval] Skipped rendering multi-weather images; offline evaluation will not run.")
 
 		# --- (NEW) Also export evaluation_results_rpga.txt (same format as evaluate_img_rpga.py) ---
 		# This evaluates final_*_images_* folders under save_dir and writes a unified summary txt.
@@ -1428,23 +1428,23 @@ def main():
 					'--score_thresh', str(getattr(args, 'score_thresh', 0.5)),
 					'--output_file', str(eval_txt_path),
 				]
-				print(f"[消息] [最终评估] 正在生成汇总文件: {eval_txt_path.name}")
+				print(f"[INFO] [Final eval] Generating summary file: {eval_txt_path.name}")
 				result = subprocess.run(cmd, capture_output=True, text=True)
 				if eval_txt_path.is_file():
-					print(f"[消息] [最终评估] 已生成: {eval_txt_path}")
+					print(f"[INFO] [Final eval] Generated: {eval_txt_path}")
 				else:
-					print("[警告] [最终评估] evaluate_img_rpga.py 未生成 evaluation_results_rpga.txt（请检查脚本输出日志）。")
+					print("[WARN] [Final eval] evaluate_img_rpga.py did not produce evaluation_results_rpga.txt (check script output).")
 					if result.returncode != 0:
-						print(f"    [调试信息] evaluate_img_rpga.py 执行失败，返回码: {result.returncode}")
+						print(f"    [DEBUG] evaluate_img_rpga.py failed, return code: {result.returncode}")
 						print(f"    --- STDOUT ---\n{result.stdout}")
 						print(f"    --- STDERR ---\n{result.stderr}")
 			else:
 				print(
-					f"[警告] [最终评估] 跳过生成 evaluation_results_rpga.txt："
+					f"[WARN] [Final eval] Skipping evaluation_results_rpga.txt: "
 					f"script={script_path.is_file()}, anno_dir={anno_dir.is_dir()}, mmdet_base={mmdet_base.is_dir()}"
 				)
 		except Exception as e:
-			print(f"[警告] [最终评估] 生成 evaluation_results_rpga.txt 失败: {e}")
+			print(f"[WARN] [Final eval] Failed to generate evaluation_results_rpga.txt: {e}")
 
 		# --- STAGE 2: Evaluate on saved images with all detectors ---
 		if bool(getattr(args, "run_stage2_eval", False)):
@@ -1464,7 +1464,7 @@ def main():
 			base_path = Path('/workspace/RGA/mmdet_files')
 			
 			for det_name in DETECTOR_PATHS.keys():
-				print(f"\n>>> [评估] 正在加载检测器: {det_name} ...")
+				print(f"\n>>> [Eval] Loading detector: {det_name} ...")
 				
 				try:
 					# Init detector
@@ -1478,7 +1478,7 @@ def main():
 					# Evaluate Multi-Weather Directories from saved images
 					mw_results = []
 					if not final_full_img_dirs_mw:
-						print("  - [结果] 未渲染任何多天气图片，跳过评估。")
+						print("  - [Result] No multi-weather images rendered, skipping evaluation.")
 					else:
 						for weather_name, img_dir in final_full_img_dirs_mw.items():
 							asr_f_w, succ_f_w, total_f_w, ap50_f_w = evaluate_from_saved_images(
@@ -1487,7 +1487,7 @@ def main():
 							mw_results.append((weather_name, 'full', asr_f_w, succ_f_w, total_f_w, ap50_f_w))
 					
 					# Log results
-					print(f"  - [结果] 检测器: {det_name}")
+					print(f"  - [Result] Detector: {det_name}")
 					with open(log_file_path, 'a', encoding='utf-8') as f:
 						f.write(f"Detector: {det_name}\n")
 						# Write MW results
@@ -1506,21 +1506,21 @@ def main():
 						torch.cuda.empty_cache()
 						
 				except Exception as e:
-					print(f"[错误] 评估检测器 {det_name} 时发生错误: {e}")
+					print(f"[ERROR] Error evaluating detector {det_name}: {e}")
 					with open(log_file_path, 'a', encoding='utf-8') as f:
 						f.write(f"Detector: {det_name} - FAILED: {e}\n")
 						f.write("-" * 30 + "\n")
 			
-			print(f"\n[消息] 最终多检测器评估完成。结果已保存到: {log_file_path}")
+			print(f"\n[INFO] Final multi-detector evaluation done. Results saved to: {log_file_path}")
 		else:
-			print("\n[消息] 已注释/禁用 Stage2（跨检测器离线评估）。如需开启请加参数: --run_stage2_eval")
+			print("\n[INFO] Stage2 (cross-detector offline eval) disabled. Use --run_stage2_eval to enable.")
 
 	else:
-		print("\n[消息] 根据设置，已跳过最终评估步骤。")
+		print("\n[INFO] Final evaluation step skipped per settings.")
 
 
 	# =================================================================================
-	# 8. 保存最终模型
+	# 8. Save final model
 	# =================================================================================
 	if gaussians is not None:
 		gaussians.save_ply(str(save_dir / 'point_cloud_final.ply'))
