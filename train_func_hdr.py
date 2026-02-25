@@ -255,7 +255,7 @@ def _get_color_anchor_tensor(
 		try:
 			anchors = json.loads(anchors)
 		except Exception:
-			print("[警告] anchor_colors 解析失败，将使用默认调色板。")
+			print("[WARN] anchor_colors parse failed, using default palette.")
 			anchors = None
 	if anchors is None:
 		anchors = [
@@ -321,7 +321,7 @@ def _resolve_target_class_idx(args: argparse.Namespace) -> int:
 	try:
 		idx = int(coco_classes.index(name))
 	except ValueError:
-		print(f"[警告] target_class_name='{name}' 不在 COCO classes 中，已回退到 'car'.")
+		print(f"[WARN] target_class_name='{name}' not in COCO classes, falling back to 'car'.")
 		idx = int(coco_classes.index("car"))
 	setattr(args, "_target_class_idx_cache", idx)
 	return idx
@@ -342,7 +342,7 @@ def _resolve_attack_target_class_idx(args: argparse.Namespace) -> int:
 		idx = int(coco_classes.index(name))
 	except ValueError:
 		fallback = str(getattr(args, "target_class_name", "car"))
-		print(f"[警告] attack_target_class='{name}' 不在 COCO classes 中，回退到 '{fallback}'.")
+		print(f"[WARN] attack_target_class='{name}' not in COCO classes, falling back to '{fallback}'.")
 		idx = int(coco_classes.index(fallback))
 	setattr(args, "_attack_target_class_idx_cache", idx)
 	return idx
@@ -426,7 +426,7 @@ def compute_batch_loss(
 		)
 		if do_profile:
 			tm["render_adv"] += time.perf_counter() - t0
-		rgb = render_pkg['render']  # (3,H,W) rgb是带有对抗纹理的白底
+		rgb = render_pkg['render']  # (3,H,W) rgb is adversarial texture on white background
 		H, W = rgb.shape[-2], rgb.shape[-1]
 		red_mask_path = first_existing([
 			Path(dataset.source_path) / 'red_masks' / f'{name}_mask.png',
@@ -518,7 +518,7 @@ def compute_batch_loss(
 				if do_profile:
 					tm["render_ori"] += time.perf_counter() - t0
 
-			# 先在白色背景上，用 red_mask 混合出完整的对抗车辆
+			# First compose full adversarial vehicle on white background using red_mask
 			if do_profile:
 				t0 = time.perf_counter()
 			# Note: if red_mask covers the whole car, full_adv_car is just 'rgb'
@@ -527,12 +527,12 @@ def compute_batch_loss(
 				tm["compose"] += time.perf_counter() - t0
 
 			if relit_image_pil is not None:
-				# 使用 full_mask (车辆的精确轮廓) 将对抗车辆合成到重打光的背景上
+				# Use full_mask (exact vehicle contour) to composite adversarial vehicle onto relit background
 				relit_image_tensor = torch.from_numpy(np.array(relit_image_pil)).permute(2,0,1).to(device=rgb.device, dtype=torch.float32) / 255.0
 				detect_img_chw = relit_image_tensor * (1 - full_mask3) + full_adv_car * full_mask3
 			else:
-				# 如果没有重打光的背景，则使用原始渲染图 rgb_ori 作为背景
-				# 同样使用 full_mask 来确保合成的边界是准确的
+				# If no relit background, use original render rgb_ori as background
+				# Use full_mask to ensure composite boundary is accurate
 				detect_img_chw = rgb_ori * (1 - full_mask3) + full_adv_car * full_mask3
 		else:
 			detect_img_chw = rgb
@@ -586,7 +586,7 @@ def compute_batch_loss(
 				save_name = f'epoch_{epoch:03d}_batch_{batch_idx:04d}_{img_name}.png'
 				Image.fromarray(img_array).save(temp_vis_dir / save_name)
 		except Exception as e:
-			print(f"[警告] 保存 temp_imgs_for_det 失败: {e}")
+			print(f"[WARN] Failed to save temp_imgs_for_det: {e}")
 	
 	if det_vis_dir is not None:
 		try:
@@ -687,7 +687,7 @@ def compute_batch_loss(
 					w.writeheader()
 				w.writerow(row)
 		except Exception as e:
-			print(f"[警告] [PROFILE] 写 profile_batchloss.csv 失败: {e}")
+			print(f"[WARN] [PROFILE] Failed to write profile_batchloss.csv: {e}")
 		# Print a compact summary (top contributors)
 		try:
 			top = [
@@ -708,7 +708,7 @@ def evaluate(test_cameras, gaussians, pipe, bg, args, dataset, gaussians_origina
 	"""
 	Evaluates the model on the test set and calculates the Attack Success Rate (ASR).
 	"""
-	print(f"\n[消息] [第 {epoch}/{args.epochs} 輪] 开始在 {set_name} 集上评估...")
+	print(f"\n[INFO] [Epoch {epoch}/{args.epochs}] Starting evaluation on {set_name} set...")
 	
 	total_attacks = 0
 	successful_attacks = 0
@@ -723,9 +723,9 @@ def evaluate(test_cameras, gaussians, pipe, bg, args, dataset, gaussians_origina
 		if int(epoch) == 1 or (interval > 0 and (int(epoch) % interval == 0)):
 			eval_vis_dir = save_dir / f"eval_{set_name}_epoch_{epoch:03d}"
 			eval_vis_dir.mkdir(parents=True, exist_ok=True)
-			print(f"[消息] 评估可视化结果将保存到: {eval_vis_dir} (interval={interval})")
+			print(f"[INFO] Eval visualization will be saved to: {eval_vis_dir} (interval={interval})")
 		else:
-			print(f"[消息] 本轮跳过评估可视化保存 (interval={interval})")
+			print(f"[INFO] Skipping eval visualization save this epoch (interval={interval})")
 
 	cam_batches = [test_cameras[i:i + args.batch_size] for i in range(0, len(test_cameras), args.batch_size)]
 	pbar_eval = tqdm(cam_batches, desc=f"Epoch {epoch} Evaluation on {set_name}", ncols=120)
@@ -896,7 +896,7 @@ def evaluate(test_cameras, gaussians, pipe, bg, args, dataset, gaussians_origina
 		eval_results = calculate_ap_for_target_class(all_preds_for_map, all_gts_for_map, target_class_idx, iou_thr=0.5)
 		ap50 = eval_results.get('AP50', 0.0)
 
-	print(f"[消息] [第 {epoch}/{args.epochs} 輪] 在 {set_name} 集上评估完成. 平均攻击成功率 (ASR): {final_asr:.4f}, AP@0.5: {ap50:.4f}")
+	print(f"[INFO] [Epoch {epoch}/{args.epochs}] Evaluation on {set_name} set done. ASR: {final_asr:.4f}, AP@0.5: {ap50:.4f}")
 	return final_asr, successful_attacks, total_attacks, ap50
 
 
@@ -905,9 +905,9 @@ def render_and_save_final_images(cameras, gaussians, pipe, bg, args, dataset, ga
     """Renders adversarial images from a set of cameras and saves them to disk."""
     output_dir = save_dir / f"final_{set_name}_images"
     output_dir.mkdir(parents=True, exist_ok=True)
-    print(f"\n[消息] 开始渲染并保存 '{set_name}' 集的图像到: {output_dir}")
+    print(f"\n[INFO] Rendering and saving '{set_name}' set images to: {output_dir}")
 
-    for cam in tqdm(cameras, desc=f"渲染 {set_name} 集图像", ncols=120):
+    for cam in tqdm(cameras, desc=f"Rendering {set_name} set", ncols=120):
         name = cam.image_name
         anno_path = Path(dataset.source_path) / 'annos' / f'{name}.json'
         if not anno_path.exists():
@@ -962,13 +962,13 @@ def render_and_save_final_images(cameras, gaussians, pipe, bg, args, dataset, ga
 @torch.no_grad()
 def evaluate_from_saved_images(detector, image_dir: Path, anno_dir: Path, args: argparse.Namespace):
     """Evaluates a detector on a directory of pre-rendered images."""
-    print(f"    -> 正在评估文件夹: {image_dir.name} ...")
+    print(f"    -> Evaluating folder: {image_dir.name} ...")
 
     vis_dir = None
     if bool(getattr(args, 'save_final_eval_vis', False)):
         vis_dir = image_dir.parent / (image_dir.name + '_vis')
         vis_dir.mkdir(parents=True, exist_ok=True)
-        print(f"      -> 检测结果可视化将保存到: {vis_dir}")
+        print(f"      -> Detection visualization will be saved to: {vis_dir}")
 
     image_paths = sorted([p for p in image_dir.iterdir() if p.suffix.lower() in ['.png', '.jpg', '.jpeg']])
     if not image_paths:
@@ -984,7 +984,7 @@ def evaluate_from_saved_images(detector, image_dir: Path, anno_dir: Path, args: 
     batch_size = 8  # A reasonable batch size
     path_batches = [image_paths[i:i + batch_size] for i in range(0, len(image_paths), batch_size)]
 
-    pbar = tqdm(path_batches, desc=f"评估 {detector.__class__.__name__} on {image_dir.name}", ncols=120, leave=False)
+    pbar = tqdm(path_batches, desc=f"Evaluating {detector.__class__.__name__} on {image_dir.name}", ncols=120, leave=False)
     for batch_paths in pbar:
         imgs_for_det = []
         view_names_with_anno = []
@@ -1082,7 +1082,7 @@ def load_hdr_image_and_tonemap(hdr_path, gamma=2.2):
     try:
         hdr_cv = cv2.imread(str(hdr_path), cv2.IMREAD_ANYDEPTH | cv2.IMREAD_COLOR)
         if hdr_cv is None:
-            print(f"无法加载HDR文件: {hdr_path}")
+            print(f"Failed to load HDR file: {hdr_path}")
             return None
         
         hdr_cv = cv2.cvtColor(hdr_cv, cv2.COLOR_BGR2RGB)
@@ -1100,7 +1100,7 @@ def load_hdr_image_and_tonemap(hdr_path, gamma=2.2):
         return Image.fromarray(ldr_8bit)
 
     except Exception as e:
-        print(f"处理HDR文件 '{hdr_path}' 时出错: {e}")
+        print(f"Error processing HDR file '{hdr_path}': {e}")
         return None
 
 
@@ -1155,19 +1155,19 @@ def first_existing(paths):
 @torch.no_grad()
 def render_and_save_final_images_mw(cameras, gaussians, pipe, bg, args, dataset, gaussians_original, relighter, save_dir: Path, set_name: str):
 	"""
-	多天气渲染与保存：使用 ori_mw2 下不同天气的同视角背景，并为每种天气加载对应的 HDR 环境贴图，
-	使前景渲染（车辆）在该天气的光照下生成，然后与该天气背景拼接。
+	Multi-weather render and save: use same-view backgrounds under ori_mw2 per weather,
+	load per-weather HDR env maps, render foreground (vehicle) under that lighting, then composite with that weather's background.
 
-	优先使用：
-	- 背景来源：dataset.source_path / 'ori_mw2' / <weather> / 'XX_<weather>.png'
-	- HDR 来源：dataset.source_path / '_EnvironmentMaps' / <...weather...>.hdr|.exr
-	若 ori_mw2 不存在则回退到 ori_mw（仅背景），HDR 仍尝试从 _EnvironmentMaps 加载。
+	Prefer:
+	- Background: dataset.source_path / 'ori_mw2' / <weather> / 'XX_<weather>.png'
+	- HDR: dataset.source_path / '_EnvironmentMaps' / <...weather...>.hdr|.exr
+	If ori_mw2 does not exist, fall back to ori_mw (background only); HDR still from _EnvironmentMaps.
 
-	规则：
-	- 其中 XX 为去掉末尾一次下划线段后的前缀（从原始 name 中去掉原来的天气后缀）。
-	- 输出：为每个天气分别创建一个输出目录，文件名仍保持原始 name（便于与 annos 匹配）。
-	返回：
-	- 一个字典 { weather_name: output_dir_path }
+	Rules:
+	- XX is the prefix with the last underscore segment removed from name (strip weather suffix).
+	- Output: one directory per weather; filenames keep original name (for annos matching).
+	Returns:
+	- dict { weather_name: output_dir_path }
 	"""
 	# Prefer new dataset folder layout
 	ori_mw_root = Path(dataset.source_path) / 'ori_mw2'
@@ -1175,36 +1175,35 @@ def render_and_save_final_images_mw(cameras, gaussians, pipe, bg, args, dataset,
 		ori_mw_root_fallback = Path(dataset.source_path) / 'ori_mw'
 		if ori_mw_root_fallback.is_dir():
 			ori_mw_root = ori_mw_root_fallback
-			print(f"[消息] [MW] 未找到 ori_mw2，回退使用: {ori_mw_root}")
+			print(f"[INFO] [MW] ori_mw2 not found, falling back to: {ori_mw_root}")
 		else:
-			print(f"[消息] [MW] 未找到多天气目录: {ori_mw_root} 或 {ori_mw_root_fallback}，跳过跨光渲染。")
+			print(f"[INFO] [MW] Multi-weather dir not found: {ori_mw_root} or {ori_mw_root_fallback}, skipping cross-light render.")
 			return {}
 
 	envmaps_root = Path(dataset.source_path) / 'ori_mw2' / '_EnvironmentMaps'
 	if not envmaps_root.is_dir():
-		print(f"[警告] [MW] 未找到环境贴图目录: {envmaps_root}。将继续渲染，但前景将使用当前 envlight 光照（不做天气对应 HDR 切换）。")
+		print(f"[WARN] [MW] Env map dir not found: {envmaps_root}. Will continue rendering with current envlight (no per-weather HDR switch).")
 
-	# 收集天气列表（子文件夹）
-	# 注意：跳过 _EnvironmentMaps / __EnvironmentMaps 等非天气目录，避免生成 final_full_images__EnvironmentMaps
+	# Collect weather list (subdirs); skip _EnvironmentMaps etc. to avoid final_full_images__EnvironmentMaps
 	weather_dirs = sorted([
 		d for d in ori_mw_root.iterdir()
 		if d.is_dir() and (not d.name.startswith('_')) and ('EnvironmentMaps' not in d.name)
 	])
 	if not weather_dirs:
-		print(f"[消息] [MW] 目录 '{ori_mw_root}' 下无天气子文件夹，跳过跨光渲染。")
+		print(f"[INFO] [MW] No weather subdirs under '{ori_mw_root}', skipping cross-light render.")
 		return {}
 
 	def _match_mw_path(weather_dir: Path, name: str, weather_name: str) -> Path | None:
-		# name 去掉末尾一次 '_' 段：ori_xxx_sunny -> ori_xxx
+		# Strip last '_' segment from name: ori_xxx_sunny -> ori_xxx
 		prefix = name.rsplit('_', 1)[0] if '_' in name else name
 		candidate = weather_dir / f"{prefix}_{weather_name}.png"
 		if candidate.is_file():
 			return candidate
-		# 回退：尝试 jpg
+		# Fallback: try jpg
 		candidate_jpg = weather_dir / f"{prefix}_{weather_name}.jpg"
 		if candidate_jpg.is_file():
 			return candidate_jpg
-		# 最后回退：遍历匹配以 prefix 开头且以 _{weather_name} 结尾的 png/jpg
+		# Last fallback: match png/jpg starting with prefix and ending with _{weather_name}
 		for p in sorted(weather_dir.iterdir()):
 			if p.suffix.lower() in ['.png', '.jpg', '.jpeg']:
 				stem = p.stem
@@ -1264,7 +1263,7 @@ def render_and_save_final_images_mw(cameras, gaussians, pipe, bg, args, dataset,
 		weather_name = wdir.name
 		output_dir = save_dir / f"final_{set_name}_images_{weather_name}"
 		output_dir.mkdir(parents=True, exist_ok=True)
-		print(f"\n[消息] [MW] 开始渲染并保存 '{set_name}' 集的多天气='{weather_name}' 图像到: {output_dir}")
+		print(f"\n[INFO] [MW] Rendering and saving '{set_name}' set (weather={weather_name}) to: {output_dir}")
 
 		# Load per-weather environment map (HDR) if available; affects foreground rendering lighting.
 		hdr_path = _find_weather_hdr(envmaps_root, weather_name) if envmaps_root.is_dir() else None
@@ -1276,14 +1275,14 @@ def render_and_save_final_images_mw(cameras, gaussians, pipe, bg, args, dataset,
 				gaussians_original.envlight.scale = getattr(args, 'environment_scale', 1.0)
 				gaussians_original.envlight.load(str(hdr_path))
 				gaussians_original.envlight.build_mips()
-				print(f"[消息] [MW] 已加载天气 '{weather_name}' 的 HDR: {hdr_path.name}")
+				print(f"[INFO] [MW] Loaded HDR for weather '{weather_name}': {hdr_path.name}")
 			except Exception as e:
-				print(f"[警告] [MW] 加载/构建天气 HDR 失败 ({weather_name}): {hdr_path}: {e}")
+				print(f"[WARN] [MW] Failed to load/build weather HDR ({weather_name}): {hdr_path}: {e}")
 		else:
 			if envmaps_root.is_dir():
-				print(f"[警告] [MW] 未找到天气 '{weather_name}' 的 HDR/EXR 于: {envmaps_root}。将使用当前 envlight 光照渲染前景。")
+				print(f"[WARN] [MW] No HDR/EXR for weather '{weather_name}' in {envmaps_root}. Using current envlight for foreground.")
 
-		for cam in tqdm(cameras, desc=f"渲染 {set_name} 集(多天气={weather_name})", ncols=120):
+		for cam in tqdm(cameras, desc=f"Rendering {set_name} (weather={weather_name})", ncols=120):
 			name = cam.image_name
 			anno_path = Path(dataset.source_path) / 'annos' / f'{name}.json'
 			if not anno_path.exists():
@@ -1312,7 +1311,7 @@ def render_and_save_final_images_mw(cameras, gaussians, pipe, bg, args, dataset,
 				rgb_ori = render_pkg_ori['render']
 				full_adv_car = rgb_ori * (1 - red_mask3) + rgb * red_mask3
 
-				# 取多天气背景
+				# Use multi-weather background
 				mw_path = _match_mw_path(wdir, name, weather_name)
 				if mw_path and Path(mw_path).is_file():
 					try:
@@ -1320,10 +1319,10 @@ def render_and_save_final_images_mw(cameras, gaussians, pipe, bg, args, dataset,
 						mw_bg_tensor = torch.from_numpy(np.array(mw_bg)).permute(2, 0, 1).to(device=rgb.device, dtype=torch.float32) / 255.0
 						detect_img_chw = mw_bg_tensor * (1 - full_mask3) + full_adv_car * full_mask3
 					except Exception as e:
-						print(f"[警告] [MW] 加载/处理背景失败: {mw_path.name}: {e}")
-						detect_img_chw = full_adv_car  # 退化为白底合成
+						print(f"[WARN] [MW] Failed to load/process background: {mw_path.name}: {e}")
+						detect_img_chw = full_adv_car  # fallback to white-background composite
 				else:
-					# 未找到对应多天气背景，退化为白底合成
+					# No matching multi-weather background, fallback to white-background composite
 					detect_img_chw = full_adv_car
 
 			save_image_rgb01(detect_img_chw, output_dir / f"{name}.png")
@@ -1350,25 +1349,25 @@ def render_and_save_final_images_mw(cameras, gaussians, pipe, bg, args, dataset,
 @torch.no_grad()
 def render_and_save_final_images_ori(cameras, gaussians, pipe, bg, args, dataset, gaussians_original, relighter, save_dir: Path, set_name: str):
 	"""
-	使用 ori 目录中的原始背景进行最终图像渲染与保存（不拼接多天气背景）。
-	适用于缺少 ori_mw2 数据的情况。
-	
-	规则：
-	- 背景来源：dataset.source_path / 'ori' / '<name>.png' 或 '<name>.jpg'
-	- 输出：创建一个输出目录 final_{set_name}_images_ori
-	返回：
-	- 一个字典 { 'ori': output_dir_path }
+	Render and save final images using original backgrounds from ori dir (no multi-weather composite).
+	Use when ori_mw2 data is not available.
+
+	Rules:
+	- Background: dataset.source_path / 'ori' / '<name>.png' or '<name>.jpg'
+	- Output: one directory final_{set_name}_images_ori
+	Returns:
+	- dict { 'ori': output_dir_path }
 	"""
 	ori_dir = Path(dataset.source_path) / 'ori'
 	if not ori_dir.is_dir():
-		print(f"[消息] [ORI] 未找到 ori 目录: {ori_dir}，跳过渲染。")
+		print(f"[INFO] [ORI] ori dir not found: {ori_dir}, skipping render.")
 		return {}
 	
 	output_dir = save_dir / f"final_{set_name}_images_ori"
 	output_dir.mkdir(parents=True, exist_ok=True)
-	print(f"\n[消息] [ORI] 开始渲染并保存 '{set_name}' 集的图像（使用 ori 背景）到: {output_dir}")
+	print(f"\n[INFO] [ORI] Rendering and saving '{set_name}' set (ori background) to: {output_dir}")
 	
-	for cam in tqdm(cameras, desc=f"渲染 {set_name} 集(ori背景)", ncols=120):
+	for cam in tqdm(cameras, desc=f"Rendering {set_name} (ori bg)", ncols=120):
 		name = cam.image_name
 		anno_path = Path(dataset.source_path) / 'annos' / f'{name}.json'
 		if not anno_path.exists():
@@ -1397,7 +1396,7 @@ def render_and_save_final_images_ori(cameras, gaussians, pipe, bg, args, dataset
 			rgb_ori = render_pkg_ori['render']
 			full_adv_car = rgb_ori * (1 - red_mask3) + rgb * red_mask3
 			
-			# 取 ori 目录中的原始背景
+			# Use original background from ori dir
 			ori_bg_path = first_existing([
 				ori_dir / f'{name}.png',
 				ori_dir / f'{name}.jpg',
@@ -1409,10 +1408,10 @@ def render_and_save_final_images_ori(cameras, gaussians, pipe, bg, args, dataset
 					ori_bg_tensor = torch.from_numpy(np.array(ori_bg)).permute(2, 0, 1).to(device=rgb.device, dtype=torch.float32) / 255.0
 					detect_img_chw = ori_bg_tensor * (1 - full_mask3) + full_adv_car * full_mask3
 				except Exception as e:
-					print(f"[警告] [ORI] 加载/处理背景失败: {ori_bg_path.name}: {e}")
-					detect_img_chw = full_adv_car  # 退化为白底合成
+					print(f"[WARN] [ORI] Failed to load/process background: {ori_bg_path.name}: {e}")
+					detect_img_chw = full_adv_car  # fallback to white-background composite
 			else:
-				# 未找到对应原始背景，退化为白底合成
+				# No matching ori background, fallback to white-background composite
 				detect_img_chw = full_adv_car
 		
 		save_image_rgb01(detect_img_chw, output_dir / f"{name}.png")
@@ -1423,32 +1422,32 @@ def render_and_save_final_images_ori(cameras, gaussians, pipe, bg, args, dataset
 @torch.no_grad()
 def visualize_hdr_bank_from_dir(cameras: List, gaussians, pipe, bg: torch.Tensor, args: argparse.Namespace, dataset: ModelParams, hdr_bank_dir: Path, save_root: Path, num_views: int = 5, seed: int = 0):
 	"""
-	从目录遍历 HDR/EXR 文件，随机抽取 num_views 个视角，对每个 HDR 进行渲染可视化并保存。
-	base 来源：envlight.load(hdr)；随后仅 build_mips()，不调用 build_base()。
-	保存结构：save_root/<hdr_stem>/<camera_name>.png
+	Iterate HDR/EXR files in dir, sample num_views cameras, render and save visualization per HDR.
+	base from envlight.load(hdr); then build_mips() only, no build_base().
+	Save layout: save_root/<hdr_stem>/<camera_name>.png
 	"""
 	hdr_dir = Path(hdr_bank_dir)
 	if not hdr_dir.is_dir():
-		print(f"[警告] [HDR-VIS] 目录不存在: {hdr_dir}")
+		print(f"[WARN] [HDR-VIS] Dir does not exist: {hdr_dir}")
 		return None
 
 	hdr_files = sorted([p for p in hdr_dir.iterdir() if p.suffix.lower() in ['.hdr', '.exr']])
 	if not hdr_files:
-		print(f"[警告] [HDR-VIS] 未在 {hdr_dir} 找到 .hdr/.exr 文件")
+		print(f"[WARN] [HDR-VIS] No .hdr/.exr files in {hdr_dir}")
 		return None
 
 	save_root = Path(save_root)
 	save_root.mkdir(parents=True, exist_ok=True)
 
-	# 采样视角
+	# Sample views
 	random.seed(seed)
 	cams = list(cameras)
 	if not cams:
-		print("[警告] [HDR-VIS] 提供的相机列表为空，跳过可视化。")
+		print("[WARN] [HDR-VIS] Camera list is empty, skipping visualization.")
 		return None
 	sampled = random.sample(cams, min(num_views, len(cams)))
 
-	print(f"[消息] [HDR-VIS] 将对 {len(hdr_files)} 个HDR、{len(sampled)} 个视角进行渲染，可视化保存到: {save_root}")
+	print(f"[INFO] [HDR-VIS] Rendering {len(hdr_files)} HDRs x {len(sampled)} views, saving to: {save_root}")
 
 	for hdr_path in tqdm(hdr_files, desc="HDR-VIS (dir)", ncols=120):
 		subdir = save_root / hdr_path.stem
@@ -1458,7 +1457,7 @@ def visualize_hdr_bank_from_dir(cameras: List, gaussians, pipe, bg: torch.Tensor
 			gaussians.envlight.load(str(hdr_path))
 			gaussians.envlight.build_mips()
 		except Exception as e:
-			print(f"[警告] [HDR-VIS] 加载/构建 mips 失败: {hdr_path.name}: {e}")
+			print(f"[WARN] [HDR-VIS] Failed to load/build mips: {hdr_path.name}: {e}")
 			continue
 
 		for cam in sampled:
@@ -1473,7 +1472,7 @@ def visualize_hdr_bank_from_dir(cameras: List, gaussians, pipe, bg: torch.Tensor
 				rgb = render_pkg['render']
 				save_image_rgb01(rgb, subdir / f"{cam.image_name}.png")
 			except Exception as e:
-				print(f"[警告] [HDR-VIS] 渲染失败: {hdr_path.stem}/{cam.image_name}: {e}")
+				print(f"[WARN] [HDR-VIS] Render failed: {hdr_path.stem}/{cam.image_name}: {e}")
 
 	return save_root
 
@@ -1506,10 +1505,10 @@ def precompute_lbm_disk_cache(
 	- Best-effort: individual failures are logged and skipped.
 	"""
 	if relighter is None:
-		print("[消息] [LBM-DiskCache] relighter=None，跳过预渲染。")
+		print("[INFO] [LBM-DiskCache] relighter=None, skipping pre-render.")
 		return
 	if bool(getattr(args, "hdr_rotation", False)):
-		print("[警告] [LBM-DiskCache] --hdr_rotation 已启用，背景非确定性；跳过磁盘预渲染。")
+		print("[WARN] [LBM-DiskCache] --hdr_rotation enabled, backgrounds non-deterministic; skipping disk pre-render.")
 		return
 	if not isinstance(cache_dir, Path):
 		cache_dir = Path(str(cache_dir))
@@ -1518,7 +1517,7 @@ def precompute_lbm_disk_cache(
 		try:
 			shutil.rmtree(cache_dir)
 		except Exception as e:
-			print(f"[警告] [LBM-DiskCache] 清理旧缓存失败: {e}")
+			print(f"[WARN] [LBM-DiskCache] Failed to clear old cache: {e}")
 
 	cache_dir.mkdir(parents=True, exist_ok=True)
 	device = bg.device if hasattr(bg, "device") else torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -1537,7 +1536,7 @@ def precompute_lbm_disk_cache(
 	except Exception:
 		pass
 
-	print(f"[消息] [LBM-DiskCache] 开始预渲染背景到: {cache_dir} (cams={len(cameras)}, hdrs={len(hdr_bases_cpu)})")
+	print(f"[INFO] [LBM-DiskCache] Pre-rendering backgrounds to: {cache_dir} (cams={len(cameras)}, hdrs={len(hdr_bases_cpu)})")
 	n_saved = 0
 	n_skipped = 0
 	n_failed = 0
@@ -1639,33 +1638,33 @@ def precompute_lbm_disk_cache(
 		(cache_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 	except Exception:
 		pass
-	print(f"[消息] [LBM-DiskCache] 预渲染完成：saved={n_saved}, skipped={n_skipped}, failed={n_failed}")
+	print(f"[INFO] [LBM-DiskCache] Pre-render done: saved={n_saved}, skipped={n_skipped}, failed={n_failed}")
 
 
 @torch.no_grad()
 def visualize_hdr_bases_with_random_views(cameras: List, gaussians, pipe, bg: torch.Tensor, args: argparse.Namespace, dataset: ModelParams, hdr_bases: List, save_root: Path, num_views: int = 5, seed: int = 0):
 	"""
-	基于内存中的 envlight.base 列表进行可视化（如 ReplayBuffer 中的 base）。
-	hdr_bases: List[Tuple[str, torch.Tensor]] 或 List[torch.Tensor]，若为张量则自动命名 base_XXX。
-	base 直接赋给 gaussians.envlight.base；随后仅 build_mips()，不调用 build_base()。
-	保存结构：save_root/<name>/<camera_name>.png
+	Visualize from in-memory envlight.base list (e.g. from ReplayBuffer).
+	hdr_bases: List[Tuple[str, torch.Tensor]] or List[torch.Tensor]; tensors get auto names base_XXX.
+	base is assigned to gaussians.envlight.base; then build_mips() only, no build_base().
+	Save layout: save_root/<name>/<camera_name>.png
 	"""
 	if not hdr_bases:
-		print("[警告] [HDR-VIS] 提供的 hdr_bases 为空，跳过可视化。")
+		print("[WARN] [HDR-VIS] hdr_bases is empty, skipping visualization.")
 		return None
 
 	save_root = Path(save_root)
 	save_root.mkdir(parents=True, exist_ok=True)
 
-	# 采样视角
+	# Sample views
 	random.seed(seed)
 	cams = list(cameras)
 	if not cams:
-		print("[警告] [HDR-VIS] 提供的相机列表为空，跳过可视化。")
+		print("[WARN] [HDR-VIS] Camera list is empty, skipping visualization.")
 		return None
 	sampled = random.sample(cams, min(num_views, len(cams)))
 
-	# 规范化输入 (name, tensor)
+	# Normalize input to (name, tensor)
 	named_bases = []
 	for idx, item in enumerate(hdr_bases):
 		if isinstance(item, tuple) and len(item) == 2:
@@ -1674,7 +1673,7 @@ def visualize_hdr_bases_with_random_views(cameras: List, gaussians, pipe, bg: to
 		else:
 			named_bases.append((f"base_{idx:03d}", item))
 
-	print(f"[消息] [HDR-VIS] 将对 {len(named_bases)} 个base、{len(sampled)} 个视角进行渲染，可视化保存到: {save_root}")
+	print(f"[INFO] [HDR-VIS] Rendering {len(named_bases)} bases x {len(sampled)} views, saving to: {save_root}")
 
 	device = bg.device if hasattr(bg, 'device') else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 	for name, base in tqdm(named_bases, desc="HDR-VIS (bases)", ncols=120):
@@ -1684,7 +1683,7 @@ def visualize_hdr_bases_with_random_views(cameras: List, gaussians, pipe, bg: to
 			gaussians.envlight.base = base.to(device=device, dtype=torch.float32)
 			gaussians.envlight.build_mips()
 		except Exception as e:
-			print(f"[警告] [HDR-VIS] 设置 base/构建 mips 失败: {name}: {e}")
+			print(f"[WARN] [HDR-VIS] Failed to set base/build mips: {name}: {e}")
 			continue
 
 		for cam in sampled:
@@ -1699,7 +1698,7 @@ def visualize_hdr_bases_with_random_views(cameras: List, gaussians, pipe, bg: to
 				rgb = render_pkg['render']
 				save_image_rgb01(rgb, subdir / f"{cam.image_name}.png")
 			except Exception as e:
-				print(f"[警告] [HDR-VIS] 渲染失败: {name}/{cam.image_name}: {e}")
+				print(f"[WARN] [HDR-VIS] Render failed: {name}/{cam.image_name}: {e}")
 
 	return save_root
 

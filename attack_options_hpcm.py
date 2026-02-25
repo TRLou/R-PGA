@@ -40,7 +40,7 @@ def get_attack_args():
     parser.add_argument(
         "--hpcm_sampling",
         type=str,
-        default="sequential",
+        default="hpcm",
         choices=["hpcm", "sequential"],
         help=(
             "Sampling mode ablation. "
@@ -51,19 +51,19 @@ def get_attack_args():
     parser.add_argument(
         "--hpcm_temperature",
         type=float,
-        default=2.0,
+        default=1.0,
         help="Softmax temperature for mining distribution (lower => more greedy).",
     )
     parser.add_argument(
         "--hpcm_uniform_prob",
         type=float,
-        default=0.2,
+        default=0.1,
         help="With this probability, sample uniformly instead of mining (exploration).",
     )
     parser.add_argument(
         "--hpcm_momentum",
         type=float,
-        default=0.9,
+        default=0.5,
         help="EMA momentum for difficulty table update: new = m*old + (1-m)*loss.",
     )
     
@@ -162,7 +162,7 @@ def get_attack_args():
     parser.add_argument(
         "--detector",
         type=str,
-        default="yolox",
+        default="yolov3",
         choices=["yolov3", "yolox", "faster-rcnn", "mask-rcnn", "d-detr", "pvt", "detr"],
         help="Object detector to use for the attack.",
     )
@@ -215,7 +215,7 @@ def get_attack_args():
     )
     parser.add_argument("--phy_contrast_weight", type=float, default=0., help="Weight for contrast term in phy_constraint_loss.")
     parser.add_argument("--phy_saturation_weight", type=float, default=0., help="Weight for saturation term in phy_constraint_loss.")
-    parser.add_argument("--phy_tv_weight", type=float, default=-5, help="Weight for TV term in phy_constraint_loss.")
+    parser.add_argument("--phy_tv_weight", type=float, default=0, help="Weight for TV term in phy_constraint_loss.")
 
     # =================================================================================
     # Environment / Relighting (discrete HDR selection; NO envlight optimization)
