@@ -1,5 +1,5 @@
 # R-PGA: Robust Physical Adversarial Camouflage Generation via Relightable 3D Gaussian Splatting
-This repository contains the official implementation of R-PGA. Paper: [RGA](https://arxiv.org/abs/2603.26067).
+This repository contains the official implementation of R-PGA. Paper: [R-PGA](https://arxiv.org/abs/2603.26067).
 
 
 **Abstract**—Physical adversarial camouflage poses a severe security threat to autonomous driving systems by mapping adversarial
